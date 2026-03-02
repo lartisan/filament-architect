@@ -19,9 +19,7 @@ class ArchitectServiceProvider extends PackageServiceProvider
         $package
             ->name('architect')
             ->hasViews('architect')
-            ->hasTranslations()
             ->hasMigration('create_architect_blueprints_table')
-            ->runsMigrations()
             ->hasAssets()
             ->hasCommands(\Lartisan\Architect\Commands\InstallCommand::class);
     }

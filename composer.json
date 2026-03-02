@@ -12,15 +12,15 @@
   "license": "MIT",
   "authors": [
     {
-      "name": "Your Name",
-      "email": "you@example.com",
+      "name": "Cristian Iosif",
+      "email": "cristianiosif@me.com",
       "role": "Developer"
     }
   ],
   "require": {
     "php": "^8.3",
     "spatie/laravel-package-tools": "^1.92",
-    "filament/filament": "^5.0"
+    "filament/filament": "^4.0|^5.0"
   },
   "require-dev": {
     "laravel/pint": "^1.0",

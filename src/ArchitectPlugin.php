@@ -12,6 +12,12 @@ class ArchitectPlugin implements Plugin
 {
     protected string $renderHook = PanelsRenderHook::GLOBAL_SEARCH_BEFORE;
 
+    protected array $availableRenderHooks = [
+        PanelsRenderHook::GLOBAL_SEARCH_BEFORE,
+        PanelsRenderHook::GLOBAL_SEARCH_AFTER,
+        PanelsRenderHook::USER_MENU_AFTER,
+    ];
+
     protected bool $isIconButton = false;
 
     public function getId(): string
@@ -21,9 +27,16 @@ class ArchitectPlugin implements Plugin
 
     public function renderHook(string $hook): static
     {
-        $this->renderHook = $hook;
+        if ($this->isAllowedRenderHool($hook)) {
+            $this->renderHook = $hook;
+        }
 
         return $this;
+    }
+
+    protected function isAllowedRenderHool(string $hook): bool
+    {
+        return in_array($hook, $this->availableRenderHooks);
     }
 
     public function iconButton(bool $condition = true): static
@@ -43,6 +56,10 @@ class ArchitectPlugin implements Plugin
 
     public function boot(Panel $panel): void
     {
+        if (! config('architect.show', ! app()->isProduction())) {
+            return;
+        }
+
         $this->registerArchitectAction();
     }
 

@@ -59,7 +59,7 @@ class ArchitectWizard extends Component implements HasActions, HasForms
             ->schema([
                 Tabs::make('Tabs')
                     ->tabs([
-                        Tabs\Tab::make('Create / Edit')
+                        Tabs\Tab::make(__('Create')) // 'Create / Edit'
                             ->icon(Heroicon::PencilSquare)
                             ->schema([
                                 Wizard::make([
@@ -74,7 +74,7 @@ class ArchitectWizard extends Component implements HasActions, HasForms
                                     ),
                             ]),
 
-                        Tabs\Tab::make('Existing Resources')
+                        Tabs\Tab::make(__('Existing Resources'))
                             ->icon(Heroicon::ListBullet)
                             ->schema([
                                 Livewire::make(BlueprintsTable::class)
@@ -145,7 +145,7 @@ class ArchitectWizard extends Component implements HasActions, HasForms
 
         if ($this->isIconButton) {
             $action->iconButton()
-                ->tooltip(__('Open Architect'));
+                ->tooltip(__('Open Filament Architect'));
         } else {
             $action->extraAttributes([
                 'class' => 'w-full justify-start',
@@ -281,21 +281,22 @@ class ArchitectWizard extends Component implements HasActions, HasForms
 
                     Grid::make(2)
                         ->schema([
+
                             Toggle::make('gen_factory')
                                 ->label(__('Generate Factory'))
                                 ->live()
-                                ->default(true),
+                                ->default(config('architect.generate_factory', true)),
 
                             Toggle::make('gen_seeder')
                                 ->label(__('Generate Seeder'))
                                 ->live()
-                                ->default(true),
+                                ->default(config('architect.generate_seeder', true)),
 
                             Toggle::make('gen_resource')
                                 ->label(__('Generate Filament Resource'))
                                 ->helperText(__('Automatically creates Resource, List, Create, Edit and View Pages.'))
                                 ->live()
-                                ->default(true),
+                                ->default(config('architect.generate_resource', true)),
                         ]),
                 ]),
         ];

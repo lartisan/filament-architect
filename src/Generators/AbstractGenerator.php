@@ -8,11 +8,16 @@ use Lartisan\Architect\ValueObjects\BlueprintData;
 
 abstract readonly class AbstractGenerator
 {
-    use Resolvable;
+    // use Resolvable;
 
     abstract public function generate(BlueprintData $blueprint): string;
 
     abstract protected function getContent(BlueprintData $blueprint): string;
+
+    public static function make(...$arguments): static
+    {
+        return new static($arguments);
+    }
 
     public function preview(BlueprintData $blueprint): string
     {
