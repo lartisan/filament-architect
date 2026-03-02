@@ -1,0 +1,63 @@
+{
+  "name": "lartisan/filament-architect",
+  "description": "A step-by-step wizard to generate full Eloquent and Filament resources straight from the Filament panel",
+  "keywords": [
+    "lartisan",
+    "filament",
+    "architect",
+    "plugin",
+    "generator"
+  ],
+  "homepage": "https://github.com/lartisan/filament-architect",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Your Name",
+      "email": "you@example.com",
+      "role": "Developer"
+    }
+  ],
+  "require": {
+    "php": "^8.3",
+    "spatie/laravel-package-tools": "^1.92",
+    "filament/filament": "^5.0"
+  },
+  "require-dev": {
+    "laravel/pint": "^1.0",
+    "phpunit/phpunit": "^10.0|^11.0|^12.0",
+    "laravel/framework": "^11.0|^12.0",
+    "orchestra/testbench": "^9.0|^10.0",
+    "pestphp/pest": "^3.0|^4.0",
+    "pestphp/pest-plugin-laravel": "^3.0|^4.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "Lartisan\\Architect\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Lartisan\\Architect\\Tests\\": "tests/"
+    }
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "Lartisan\\Architect\\ArchitectServiceProvider"
+      ]
+    }
+  },
+  "scripts": {
+    "test": "vendor/bin/pest",
+    "format": "vendor/bin/pint",
+    "lint": "vendor/bin/pint --test"
+  },
+  "config": {
+    "sort-packages": true,
+    "allow-plugins": {
+      "pestphp/pest-plugin": true
+    }
+  },
+  "minimum-stability": "dev",
+  "prefer-stable": true
+}

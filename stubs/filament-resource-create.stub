@@ -1,0 +1,11 @@
+<?php
+
+namespace {{ namespace }}\{{ resource_class }}\Pages;
+
+use {{ namespace }}\{{ resource_class }};
+use Filament\Resources\Pages\CreateRecord;
+
+class Create{{ model_class }} extends CreateRecord
+{
+    protected static string $resource = {{ resource_class }}::class;
+}

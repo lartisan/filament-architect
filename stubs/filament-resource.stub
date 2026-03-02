@@ -1,0 +1,75 @@
+<?php
+
+namespace {{ namespace }};
+
+use {{ model_namespace }}\{{ model_class }};
+use Filament\Forms;
+use Filament\Schemas\Schema;
+use Filament\Resources\Resource;
+use Filament\Tables;
+use Filament\Tables\Table;
+use {{ namespace }}\{{ resource_class }}\Pages;
+{{ soft_deletes_import }}
+
+class {{ resource_class }} extends Resource
+{
+    protected static ?string $model = {{ model_class }}::class;
+
+    protected static \BackedEnum|string|null $navigationIcon = 'heroicon-o-rectangle-stack';
+
+    public static function form(Schema $schema): Schema
+    {
+        return $schema
+            ->components([
+                {{ form_schema }}
+            ]);
+    }
+
+    public static function table(Table $table): Table
+    {
+        return $table
+            ->columns([
+                {{ table_columns }}
+            ])
+            ->filters([
+                {{ soft_deletes_filter }}
+            ])
+            ->recordActions([
+                \Filament\Actions\EditAction::make(),
+                \Filament\Actions\DeleteAction::make(),
+            ])
+            ->toolbarActions([
+                \Filament\Actions\BulkActionGroup::make([
+                    \Filament\Actions\DeleteBulkAction::make(),
+                    {{ soft_deletes_bulk_actions }}
+                ]),
+            ]);
+    }
+
+    public static function infolist(Schema $schema): Schema
+    {
+        return $schema
+            ->components([
+                {{ infolist_schema }}
+            ]);
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            //
+        ];
+    }
+
+    public static function getPages(): array
+    {
+        return [
+            'index' => Pages\List{{ model_plural_class }}::route('/'),
+            'create' => Pages\Create{{ model_class }}::route('/create'),
+            'edit' => Pages\Edit{{ model_class }}::route('/{record}/edit'),
+            'view' => Pages\View{{ model_class }}::route('/{record}'),
+        ];
+    }
+{{ eloquent_query }}
+}
+
