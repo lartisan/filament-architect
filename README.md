@@ -4,11 +4,14 @@
 
 A powerful [Filament](https://filamentphp.com) plugin that enables rapid scaffolding and generation of Eloquent models, migrations, factories, seeders, and Filament resources through an intuitive wizard interface.
 
+<div align="center" class="filament-hidden">
+
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/lartisan/filament-architect.svg)](https://packagist.org/packages/lartisan/filament-architect)
 [![GitHub Tests](https://img.shields.io/github/actions/workflow/status/lartisan/filament-architect/tests.yml?label=Tests)](https://github.com/lartisan/filament-architect/actions)
 [![Total Downloads](https://img.shields.io/packagist/dt/lartisan/filament-architect.svg)](https://packagist.org/packages/lartisan/filament-architect)
 [![License](https://img.shields.io/packagist/l/lartisan/filament-architect.svg)](https://packagist.org/packages/lartisan/filament-architect)
 
+</div>
 </div>
 
 ![Filament Architect - Quick demo](https://github.com/user-attachments/assets/581b6302-b4d2-44f9-9047-d4d20328e9d2)
@@ -113,6 +116,8 @@ class AdminPanelProvider extends PanelProvider
 }
 ```
 
+<div class="filament-hidden">
+
 ### Configuration File
 
 Edit `config/architect.php` to customize the plugin behavior, namespaces, and output paths:
@@ -200,6 +205,8 @@ return [
     'resources_namespace' => 'App\\Filament\\Resources',
 ];
 ```
+
+</div>
 
 #### Environment Variables
 
@@ -340,6 +347,8 @@ When you use the Architect wizard, it generates the following files:
 - **Create Page**: Form for creating new records
 - **Edit Page**: Form for editing existing records
 - **View Page**: Read-only view of a record
+
+<div class="filament-hidden">
 
 ## Development
 
@@ -510,3 +519,4 @@ Special thanks to:
 
 ## Made with ❤️ for the Laravel/Filament Community
 
+</div>
