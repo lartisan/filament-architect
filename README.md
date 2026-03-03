@@ -11,6 +11,9 @@ A powerful [Filament](https://filamentphp.com) plugin that enables rapid scaffol
 
 </div>
 
+https://github.com/user-attachments/assets/7282290d-aa94-4ff5-841e-252be826c2dd
+
+
 ## Features
 
 ✨ **Interactive Wizard Interface** - A beautiful, user-friendly step-by-step wizard for defining your database schema
