@@ -8,6 +8,7 @@ use Lartisan\Architect\Generators\MigrationGenerator;
 use Lartisan\Architect\Generators\ModelGenerator;
 use Lartisan\Architect\Tests\TestCase;
 use Lartisan\Architect\ValueObjects\BlueprintData;
+
 use function Pest\Laravel\assertDatabaseHas;
 
 uses(TestCase::class);
@@ -49,7 +50,7 @@ function cleanupAllGeneratedFiles(): void
     // Clean migrations
     $migrationsPath = database_path('migrations');
     if (File::isDirectory($migrationsPath)) {
-        $migrations = File::glob($migrationsPath . '/*.php');
+        $migrations = File::glob($migrationsPath.'/*.php');
         foreach ($migrations as $migration) {
             if (str_contains($migration, '_create_posts_table') ||
                 str_contains($migration, '_create_articles_table')) {
@@ -214,4 +215,3 @@ it('can perform full CRUD operations on generated models', function () {
     File::delete($migrationPath);
     File::delete($modelPath);
 });
-

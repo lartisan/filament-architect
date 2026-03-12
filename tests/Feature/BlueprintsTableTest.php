@@ -12,6 +12,7 @@ use Lartisan\Architect\Generators\MigrationGenerator;
 use Lartisan\Architect\Generators\ModelGenerator;
 use Lartisan\Architect\Generators\SeederGenerator;
 use Lartisan\Architect\Models\Blueprint;
+use Lartisan\Architect\Support\GenerationPathResolver;
 use Lartisan\Architect\Tests\TestCase;
 use Lartisan\Architect\ValueObjects\BlueprintData;
 
@@ -40,36 +41,26 @@ function cleanupTestFiles(): void
             Schema::drop($table);
         }
 
-        // Clean migration records
         DB::table('migrations')
-            ->where('migration', 'like', "%_create_{$table}_table")
+            ->where('migration', 'like', "%_{$table}_table")
             ->delete();
     }
 
     foreach ($models as $model) {
-        // Clean model files
-        @unlink(app_path("Models/{$model}.php"));
+        @unlink(GenerationPathResolver::model($model));
+        @unlink(GenerationPathResolver::factory("{$model}Factory"));
+        @unlink(GenerationPathResolver::seeder("{$model}Seeder"));
+        @unlink(GenerationPathResolver::resource("{$model}Resource"));
 
-        // Clean factory files
-        @unlink(database_path("factories/{$model}Factory.php"));
-
-        // Clean seeder files
-        @unlink(database_path("seeders/{$model}Seeder.php"));
-
-        // Clean resource files
-        @unlink(app_path("Filament/Resources/{$model}Resource.php"));
-
-        // Clean resource directory
-        $resourceDir = app_path("Filament/Resources/{$model}Resource");
+        $resourceDir = GenerationPathResolver::resourceDirectory("{$model}Resource");
         if (File::isDirectory($resourceDir)) {
             File::deleteDirectory($resourceDir);
         }
     }
 
-    // Clean migration files
     $migrations = File::glob(database_path('migrations/*.php'));
     foreach ($migrations as $migration) {
-        if (preg_match('/_create_(products|test_models|articles)_table\.php$/', $migration)) {
+        if (preg_match('/_(create|sync)_(products|test_models|articles)_table\.php$/', $migration)) {
             @unlink($migration);
         }
     }
@@ -83,17 +74,17 @@ function deleteBlueprint(Blueprint $record): void
 
     Schema::dropIfExists($tableName);
     DB::table('migrations')
-        ->where('migration', 'like', "%_create_{$tableName}_table")
+        ->where('migration', 'like', "%_{$tableName}_table")
         ->delete();
 
     $filesToDelete = [
-        app_path("Models/{$modelName}.php"),
-        database_path("factories/{$modelName}Factory.php"),
-        database_path("seeders/{$modelName}Seeder.php"),
-        app_path("Filament/Resources/{$modelName}Resource.php"),
+        GenerationPathResolver::model($modelName),
+        GenerationPathResolver::factory("{$modelName}Factory"),
+        GenerationPathResolver::seeder("{$modelName}Seeder"),
+        GenerationPathResolver::resource("{$modelName}Resource"),
     ];
 
-    $resourceDirectory = app_path("Filament/Resources/{$modelName}Resource");
+    $resourceDirectory = GenerationPathResolver::resourceDirectory("{$modelName}Resource");
 
     foreach ($filesToDelete as $file) {
         if (File::exists($file)) {
@@ -105,7 +96,7 @@ function deleteBlueprint(Blueprint $record): void
         File::deleteDirectory($resourceDirectory);
     }
 
-    $migrationFiles = File::glob(database_path("migrations/*_create_{$tableName}_table.php"));
+    $migrationFiles = File::glob(database_path("migrations/*_{$tableName}_table.php"));
     foreach ($migrationFiles as $migration) {
         File::delete($migration);
     }
@@ -311,6 +302,3 @@ it('deletes multiple blueprints independently', function () {
     expect(Schema::hasTable('articles'))->toBeFalse();
     expect(File::exists($modelPath2))->toBeFalse();
 });
-
-
-

@@ -11,12 +11,11 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\HtmlString;
 use Lartisan\Architect\Models\Blueprint;
+use Lartisan\Architect\Support\GenerationPathResolver;
 use Livewire\Component;
 
 class BlueprintsTable extends Component implements HasActions, HasForms, HasTable
@@ -35,7 +34,7 @@ class BlueprintsTable extends Component implements HasActions, HasForms, HasTabl
                 TextColumn::make('created_at')->dateTime()->label(__('Created At')),
             ])
             ->recordActions([
-                /*\Filament\Actions\Action::make('load')
+                \Filament\Actions\Action::make('load')
                     ->label(__('Load'))
                     ->icon('heroicon-m-arrow-path')
                     ->color('success')
@@ -43,11 +42,13 @@ class BlueprintsTable extends Component implements HasActions, HasForms, HasTabl
                         $this->dispatch('load-blueprint', id: $record->id)
                             ->to(ArchitectWizard::class);
 
+                        $this->dispatch('activate-first-tab');
+
                         \Filament\Notifications\Notification::make()
                             ->title(__('Blueprint loaded: :table', ['table' => $record->table_name]))
                             ->success()
                             ->send();
-                    }),*/
+                    }),
 
                 \Filament\Actions\DeleteAction::make()
                     ->requiresConfirmation()
@@ -72,17 +73,17 @@ class BlueprintsTable extends Component implements HasActions, HasForms, HasTabl
 
         Schema::dropIfExists($tableName);
         DB::table('migrations')
-            ->where('migration', 'like', "%_create_{$tableName}_table")
+            ->where('migration', 'like', "%_{$tableName}_table")
             ->delete();
 
         $filesToDelete = [
-            app_path("Models/{$modelName}.php"),
-            database_path("factories/{$modelName}Factory.php"),
-            database_path("seeders/{$modelName}Seeder.php"),
-            app_path("Filament/Resources/{$modelName}Resource.php"),
+            GenerationPathResolver::model($modelName),
+            GenerationPathResolver::factory("{$modelName}Factory"),
+            GenerationPathResolver::seeder("{$modelName}Seeder"),
+            GenerationPathResolver::resource("{$modelName}Resource"),
         ];
 
-        $resourceDirectory = app_path("Filament/Resources/{$modelName}Resource");
+        $resourceDirectory = GenerationPathResolver::resourceDirectory("{$modelName}Resource");
 
         foreach ($filesToDelete as $file) {
             if (File::exists($file)) {
@@ -94,7 +95,7 @@ class BlueprintsTable extends Component implements HasActions, HasForms, HasTabl
             File::deleteDirectory($resourceDirectory);
         }
 
-        $migrationFiles = File::glob(database_path("migrations/*_create_{$tableName}_table.php"));
+        $migrationFiles = File::glob(database_path("migrations/*_{$tableName}_table.php"));
         foreach ($migrationFiles as $migration) {
             File::delete($migration);
         }

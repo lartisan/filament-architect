@@ -11,6 +11,8 @@ readonly class ColumnDefinition
         public bool $unique = false,
         public bool $index = false,
         public mixed $default = null,
+        public ?string $relationshipTable = null,
+        public ?string $relationshipTitleColumn = null,
     ) {}
 
     public static function fromArray(array $data): self
@@ -22,10 +24,22 @@ readonly class ColumnDefinition
             unique: (bool) ($data['is_unique'] ?? false),
             index: (bool) ($data['is_index'] ?? false),
             default: $data['default'] ?? null,
+            relationshipTable: filled($data['relationship_table'] ?? null) ? (string) $data['relationship_table'] : null,
+            relationshipTitleColumn: filled($data['relationship_title_column'] ?? null) ? (string) $data['relationship_title_column'] : null,
         );
     }
 
     public function toMigrationLine(): string
+    {
+        return $this->buildMigrationLine(appendChangeCall: false);
+    }
+
+    public function toChangeMigrationLine(bool $forceDefault = false): string
+    {
+        return $this->buildMigrationLine(appendChangeCall: true, forceDefault: $forceDefault);
+    }
+
+    private function buildMigrationLine(bool $appendChangeCall, bool $forceDefault = false): string
     {
         $line = "\$table->{$this->type}('{$this->name}')";
 
@@ -33,27 +47,40 @@ readonly class ColumnDefinition
             $line .= '->nullable()';
         }
 
-        if ($this->unique) {
+        if (! $appendChangeCall && $this->unique) {
             $line .= '->unique()';
         }
 
-        // Handle default values - skip empty strings but allow 0 and false
-        if ($this->default !== null && $this->default !== '') {
-            if (is_bool($this->default)) {
-                $value = $this->default ? 'true' : 'false';
-            } elseif (is_numeric($this->default)) {
-                $value = $this->default;
-            } else {
-                $value = "'{$this->default}'";
-            }
-            $line .= "->default({$value})";
+        if ($forceDefault || ($this->default !== null && $this->default !== '')) {
+            $line .= '->default('.$this->formatDefaultValue().')';
         }
 
-        if ($this->index && ! $this->unique) {
+        if (! $appendChangeCall && $this->index && ! $this->unique) {
             $line .= '->index()';
         }
 
+        if ($appendChangeCall) {
+            $line .= '->change()';
+        }
+
         return $line.';';
+    }
+
+    private function formatDefaultValue(): string
+    {
+        if ($this->default === null) {
+            return 'null';
+        }
+
+        if (is_bool($this->default)) {
+            return $this->default ? 'true' : 'false';
+        }
+
+        if (is_numeric($this->default)) {
+            return (string) $this->default;
+        }
+
+        return "'{$this->default}'";
     }
 
     public function toArray(): array
@@ -65,6 +92,8 @@ readonly class ColumnDefinition
             'is_nullable' => $this->nullable,
             'is_unique' => $this->unique,
             'is_index' => $this->index,
+            'relationship_table' => $this->relationshipTable,
+            'relationship_title_column' => $this->relationshipTitleColumn,
         ];
     }
 }

@@ -3,13 +3,11 @@
 namespace Lartisan\Architect\Generators;
 
 use Illuminate\Support\Facades\File;
-use Lartisan\Architect\Support\Concerns\Resolvable;
+use Lartisan\Architect\Support\GeneratedCodeFormatter;
 use Lartisan\Architect\ValueObjects\BlueprintData;
 
 abstract readonly class AbstractGenerator
 {
-    // use Resolvable;
-
     abstract public function generate(BlueprintData $blueprint): string;
 
     abstract protected function getContent(BlueprintData $blueprint): string;
@@ -45,5 +43,12 @@ abstract readonly class AbstractGenerator
         if (! File::isDirectory($directory)) {
             File::makeDirectory($directory, 0755, true);
         }
+    }
+
+    protected function writeFormattedFile(string $path, string $content): void
+    {
+        File::put($path, $content);
+
+        app(GeneratedCodeFormatter::class)->format($path);
     }
 }

@@ -3,6 +3,10 @@
 namespace Lartisan\Architect\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Lartisan\Architect\Enums\GenerationMode;
+use Lartisan\Architect\ValueObjects\BlueprintData;
 
 class Blueprint extends Model
 {
@@ -16,6 +20,26 @@ class Blueprint extends Model
         'soft_deletes' => 'boolean',
     ];
 
+    public function revisions(): HasMany
+    {
+        return $this->hasMany(BlueprintRevision::class, 'blueprint_id')->orderByDesc('revision');
+    }
+
+    public function latestRevision(): HasOne
+    {
+        return $this->hasOne(BlueprintRevision::class, 'blueprint_id')->latestOfMany('revision');
+    }
+
+    public function recordRevision(BlueprintData $blueprintData): BlueprintRevision
+    {
+        $nextRevision = ((int) $this->revisions()->max('revision')) + 1;
+
+        return $this->revisions()->create([
+            'revision' => $nextRevision,
+            'snapshot' => $blueprintData->toFormData(),
+        ]);
+    }
+
     public function toFormData(): array
     {
         return [
@@ -27,6 +51,9 @@ class Blueprint extends Model
             'gen_factory' => $this->meta['gen_factory'] ?? true,
             'gen_seeder' => $this->meta['gen_seeder'] ?? true,
             'gen_resource' => $this->meta['gen_resource'] ?? true,
+            'generation_mode' => $this->meta['generation_mode'] ?? GenerationMode::default()->value,
+            'allow_destructive_changes' => (bool) ($this->meta['allow_destructive_changes'] ?? false),
+            'allow_likely_renames' => (bool) ($this->meta['allow_likely_renames'] ?? false),
             'run_migration' => false,
             'overwrite_table' => false,
         ];

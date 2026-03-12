@@ -2,14 +2,30 @@
 
 namespace Lartisan\Architect\Generators;
 
+use Illuminate\Database\Eloquent\Model as EloquentModel;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Lartisan\Architect\Enums\GenerationMode;
+use Lartisan\Architect\Support\FilamentResourceUpdater;
+use Lartisan\Architect\Support\GenerationPathResolver;
 use Lartisan\Architect\ValueObjects\BlueprintData;
 use Lartisan\Architect\ValueObjects\ColumnDefinition;
 
 readonly class FilamentResourceGenerator extends AbstractGenerator
 {
     private const array FOREIGN_COLUMN_SUFFIXES = ['_id', '_uuid', '_ulid'];
+
+    private const array PREFERRED_RELATIONSHIP_TITLE_COLUMNS = [
+        'name',
+        'title',
+        'label',
+        'full_name',
+        'display_name',
+        'email',
+        'slug',
+        'code',
+    ];
 
     protected function getContent(BlueprintData $blueprint): string
     {
@@ -19,7 +35,7 @@ readonly class FilamentResourceGenerator extends AbstractGenerator
 
         return $this->replacePlaceholders($stub, [
             '{{ namespace }}' => config('architect.resources_namespace', 'App\\Filament\\Resources'),
-            '{{ model_namespace }}' => config('architect.models_namespace', 'App\\Models'),
+            '{{ model_namespace }}' => GenerationPathResolver::modelsNamespace(),
             '{{ model_class }}' => $modelName,
             '{{ model_plural_class }}' => $modelPlural,
             '{{ resource_class }}' => "{$modelName}Resource",
@@ -66,6 +82,7 @@ PHP;
                 return Str::camel(str_replace($suffix, '', $columnName));
             }
         }
+
         return Str::camel($columnName);
     }
 
@@ -76,9 +93,10 @@ PHP;
                 /** @var ColumnDefinition $col */
                 if ($this->isForeignColumn($col)) {
                     $relationshipName = $this->extractRelationshipName($col->name);
+                    $titleAttribute = $this->resolveRelationshipDisplayColumn($col, $relationshipName);
 
                     $component = "Forms\Components\Select::make('{$col->name}')
-                    ->relationship('{$relationshipName}', 'name')";
+                    ->relationship('{$relationshipName}', '{$titleAttribute}')";
 
                     if ($col->index) {
                         $component .= "\n                    ->searchable()";
@@ -116,8 +134,9 @@ PHP;
                 /** @var ColumnDefinition $col */
                 if ($this->isForeignColumn($col)) {
                     $relationshipName = $this->extractRelationshipName($col->name);
+                    $titleAttribute = $this->resolveRelationshipDisplayColumn($col, $relationshipName);
 
-                    $columnClass = "Tables\Columns\TextColumn::make('{$relationshipName}.name')\n                    ->label('".Str::headline($relationshipName)."')";
+                    $columnClass = "Tables\Columns\TextColumn::make('{$relationshipName}.{$titleAttribute}')\n                    ->label('".Str::headline($relationshipName)."')";
                 } else {
                     $columnClass = match ($col->type) {
                         'boolean' => "Tables\Columns\IconColumn::make('{$col->name}')->boolean()",
@@ -154,9 +173,8 @@ PHP;
     public function generate(BlueprintData $blueprint): string
     {
         $resourceName = "{$blueprint->modelName}Resource";
-        $basePath = app_path('Filament/Resources');
-        $resourceDir = "{$basePath}/{$resourceName}";
-        $resourcePath = "{$basePath}/{$resourceName}.php";
+        $resourceDir = GenerationPathResolver::resourceDirectory($resourceName);
+        $resourcePath = GenerationPathResolver::resource($resourceName);
 
         $this->ensureDirectoryExists($resourcePath);
 
@@ -164,7 +182,12 @@ PHP;
             File::makeDirectory("{$resourceDir}/Pages", 0755, true);
         }
 
-        File::put($resourcePath, $this->getContent($blueprint));
+        if (File::exists($resourcePath) && $blueprint->generationMode->shouldMergeExistingArtifacts()) {
+            $updatedContent = app(FilamentResourceUpdater::class)->merge(File::get($resourcePath), $this->getContent($blueprint));
+            $this->writeFormattedFile($resourcePath, $updatedContent);
+        } elseif (! File::exists($resourcePath) || $blueprint->generationMode === GenerationMode::Replace) {
+            $this->writeFormattedFile($resourcePath, $this->getContent($blueprint));
+        }
 
         $this->generateResourcePages($blueprint, $resourceDir);
 
@@ -209,8 +232,75 @@ PHP;
 
             $path = "{$directory}/Pages/{$config['fileName']}";
 
-            File::put($path, $content);
+            if (! File::exists($path) || $blueprint->generationMode === GenerationMode::Replace) {
+                $this->writeFormattedFile($path, $content);
+            }
         }
     }
-}
 
+    private function resolveRelationshipDisplayColumn(ColumnDefinition $column, string $relationshipName): string
+    {
+        if (filled($column->relationshipTitleColumn)) {
+            return (string) $column->relationshipTitleColumn;
+        }
+
+        $tableName = $this->resolveRelationshipTableName($column, $relationshipName);
+        $fallback = $this->resolveRelationshipKeyName($relationshipName);
+
+        if ($tableName === null || ! Schema::hasTable($tableName)) {
+            return $fallback;
+        }
+
+        $columnNames = collect(Schema::getColumns($tableName))
+            ->pluck('name')
+            ->filter(fn ($name) => is_string($name))
+            ->map(fn (string $name) => strtolower($name))
+            ->values()
+            ->all();
+
+        foreach (self::PREFERRED_RELATIONSHIP_TITLE_COLUMNS as $candidate) {
+            if (in_array($candidate, $columnNames, true)) {
+                return $candidate;
+            }
+        }
+
+        return $fallback;
+    }
+
+    private function resolveRelationshipTableName(ColumnDefinition $column, string $relationshipName): ?string
+    {
+        if (filled($column->relationshipTable)) {
+            return (string) $column->relationshipTable;
+        }
+
+        $relatedModel = $this->resolveRelatedModel($relationshipName);
+
+        if ($relatedModel instanceof EloquentModel) {
+            return $relatedModel->getTable();
+        }
+
+        return Str::snake(Str::pluralStudly(Str::studly($relationshipName)));
+    }
+
+    private function resolveRelationshipKeyName(string $relationshipName): string
+    {
+        $relatedModel = $this->resolveRelatedModel($relationshipName);
+
+        return $relatedModel instanceof EloquentModel
+            ? $relatedModel->getKeyName()
+            : 'id';
+    }
+
+    private function resolveRelatedModel(string $relationshipName): ?EloquentModel
+    {
+        $modelClass = trim(GenerationPathResolver::modelsNamespace(), '\\').'\\'.Str::studly($relationshipName);
+
+        if (! class_exists($modelClass)) {
+            return null;
+        }
+
+        $model = app($modelClass);
+
+        return $model instanceof EloquentModel ? $model : null;
+    }
+}

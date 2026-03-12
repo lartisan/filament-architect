@@ -37,6 +37,37 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Default Generation Mode
+    |--------------------------------------------------------------------------
+    |
+    | Controls how Architect should behave when target artifacts already exist.
+    |
+    | - create: only create missing files and skip existing artifacts
+    | - merge: update managed/generated parts without replacing the whole file
+    | - replace: rewrite generated artifacts and allow destructive workflows
+    |
+    */
+    'default_generation_mode' => env('ARCHITECT_DEFAULT_GENERATION_MODE', 'merge'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Generated File Formatting
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, Architect will try to run a formatter after writing or
+    | updating generated PHP files so merged code remains readable.
+    |
+    | Supported formatter values:
+    | - pint_if_available: run Pint only when a local binary exists
+    | - pint: require Pint to exist locally, otherwise skip silently
+    | - none: disable formatter execution entirely
+    |
+    */
+    'format_generated_files' => env('ARCHITECT_FORMAT_GENERATED_FILES', true),
+    'formatter' => env('ARCHITECT_FORMATTER', 'pint_if_available'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Models Namespace
     |--------------------------------------------------------------------------
     |
@@ -44,7 +75,8 @@ return [
     | where your model classes will be created when using the Architect wizard.
     |
     */
-    'namespace' => 'App\\Models',
+    'models_namespace' => env('ARCHITECT_MODELS_NAMESPACE', env('ARCHITECT_NAMESPACE', 'App\\Models')),
+    'namespace' => env('ARCHITECT_NAMESPACE', env('ARCHITECT_MODELS_NAMESPACE', 'App\\Models')),
 
     /*
     |--------------------------------------------------------------------------
@@ -55,7 +87,7 @@ return [
     | where your factory classes will be created for testing and seeding.
     |
     */
-    'factories_namespace' => 'Database\\Factories',
+    'factories_namespace' => env('ARCHITECT_FACTORIES_NAMESPACE', 'Database\\Factories'),
 
     /*
     |--------------------------------------------------------------------------
@@ -66,7 +98,8 @@ return [
     | where your seeder classes will be created for populating test data.
     |
     */
-    'seeders_namespace' => 'Database\\Seeders',
+    'seeders_namespace' => env('ARCHITECT_SEEDERS_NAMESPACE', 'Database\\Seeders'),
+    'seeder_namespace' => env('ARCHITECT_SEEDERS_NAMESPACE', 'Database\\Seeders'),
 
     /*
     |--------------------------------------------------------------------------
@@ -77,6 +110,6 @@ return [
     | where your resource classes (including pages and actions) will be created.
     |
     */
-    'resources_namespace' => 'App\\Filament\\Resources',
+    'resources_namespace' => env('ARCHITECT_RESOURCES_NAMESPACE', 'App\\Filament\\Resources'),
 
 ];

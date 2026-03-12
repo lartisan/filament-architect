@@ -2,9 +2,15 @@
 
 namespace Lartisan\Architect;
 
+use Filament\Support\Assets\Css;
+use Filament\Support\Assets\Js;
 use Filament\Support\Facades\FilamentAsset;
 use Filament\Support\Facades\FilamentIcon;
 use Illuminate\Support\Facades\Blade;
+use Lartisan\Architect\Commands\InstallCommand;
+use Lartisan\Architect\Livewire\ArchitectWizard;
+use Lartisan\Architect\View\Components\CodePreview;
+use Livewire\Livewire;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 
@@ -20,8 +26,9 @@ class ArchitectServiceProvider extends PackageServiceProvider
             ->name('architect')
             ->hasViews('architect')
             ->hasMigration('create_architect_blueprints_table')
+            ->hasMigration('create_architect_blueprint_revisions_table')
             ->hasAssets()
-            ->hasCommands(\Lartisan\Architect\Commands\InstallCommand::class);
+            ->hasCommands(InstallCommand::class);
     }
 
     public function packageRegistered(): void
@@ -33,7 +40,7 @@ class ArchitectServiceProvider extends PackageServiceProvider
     {
         $this->loadViewsFrom(__DIR__.'/../resources/views', 'architect');
 
-        \Livewire\Livewire::component('architect-wizard', \Lartisan\Architect\Livewire\ArchitectWizard::class);
+        Livewire::component('architect-wizard', ArchitectWizard::class);
 
         if (class_exists(FilamentAsset::class)) {
             FilamentAsset::register(
@@ -46,17 +53,17 @@ class ArchitectServiceProvider extends PackageServiceProvider
             FilamentIcon::register($this->getIcons());
         }
 
-        Blade::component('architect-code-preview', \Lartisan\Architect\View\Components\CodePreview::class);
+        Blade::component('architect-code-preview', CodePreview::class);
     }
 
     protected function getAssets(): array
     {
         return [
-            \Filament\Support\Assets\Css::make('prism-tomorrow', __DIR__.'/../resources/dist/prism-tomorrow.min.css'),
-            \Filament\Support\Assets\Js::make('prism-core', __DIR__.'/../resources/dist/prism.min.js'),
-            \Filament\Support\Assets\Js::make('prism-markup-templating', __DIR__.'/../resources/dist/prism-markup-templating.min.js'),
-            \Filament\Support\Assets\Js::make('prism-php', __DIR__.'/../resources/dist/prism-php.min.js'),
-            \Filament\Support\Assets\Js::make('prism-init', __DIR__.'/../resources/dist/prism-php.min.js')->html(<<<'JS'
+            Css::make('prism-tomorrow', __DIR__.'/../resources/dist/prism-tomorrow.min.css'),
+            Js::make('prism-core', __DIR__.'/../resources/dist/prism.min.js'),
+            Js::make('prism-markup-templating', __DIR__.'/../resources/dist/prism-markup-templating.min.js'),
+            Js::make('prism-php', __DIR__.'/../resources/dist/prism-php.min.js'),
+            Js::make('prism-init', __DIR__.'/../resources/dist/prism-php.min.js')->html(<<<'JS'
                 <script data-navigate-track>
                     (function () {
                         function highlightAll() {
@@ -89,7 +96,7 @@ class ArchitectServiceProvider extends PackageServiceProvider
     protected function getCommands(): array
     {
         return [
-            \Lartisan\Architect\Commands\InstallCommand::class,
+            InstallCommand::class,
         ];
     }
 

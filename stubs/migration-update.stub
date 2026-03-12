@@ -8,14 +8,16 @@ return new class extends Migration
 {
     public function up(): void
     {
-        {{ drop_statement }}
-        Schema::create('{{ table_name }}', function (Blueprint $table) {
+        Schema::table('{{ table_name }}', function (Blueprint $table) {
             {{ columns }}
         });
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('{{ table_name }}');
+        Schema::table('{{ table_name }}', function (Blueprint $table) {
+            {{ rollback_columns }}
+        });
     }
 };
+

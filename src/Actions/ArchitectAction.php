@@ -8,27 +8,30 @@ use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
+use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Group;
 use Filament\Schemas\Components\Livewire;
 use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Components\Wizard;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
-use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Lartisan\Architect\Enums\GenerationMode;
 use Lartisan\Architect\Generators\FactoryGenerator;
 use Lartisan\Architect\Generators\FilamentResourceGenerator;
 use Lartisan\Architect\Generators\MigrationGenerator;
 use Lartisan\Architect\Generators\ModelGenerator;
 use Lartisan\Architect\Generators\SeederGenerator;
 use Lartisan\Architect\Livewire\BlueprintsTable;
-use Lartisan\Architect\Models\Blueprint as ArchitectBlueprint;
+use Lartisan\Architect\Support\BlueprintGenerationService;
+use Lartisan\Architect\Support\RegenerationPlanner;
 use Lartisan\Architect\ValueObjects\BlueprintData;
+use Lartisan\Architect\ValueObjects\PlannedSchemaOperation;
+use Lartisan\Architect\ValueObjects\RegenerationPlan;
 
 class ArchitectAction extends Action
 {
@@ -43,14 +46,16 @@ class ArchitectAction extends Action
 
         $this->label('Architect')
             ->modalDescription(__('Generate Eloquent model, migration, factory and seeder along with the associated Filament resource.'))
+            ->modalIcon(Heroicon::Square3Stack3d)
             ->icon(Heroicon::Square3Stack3d)
             ->modalWidth(Width::FiveExtraLarge)
             ->slideOver()
             ->schema([
                 Tabs::make('Tabs')
                     ->tabs([
-                        Tabs\Tab::make(__('Create')) // 'Create / Edit'
+                        Tabs\Tab::make(__('Create / Edit'))
                             ->icon(Heroicon::PencilSquare)
+                            ->id('tab-create')
                             ->schema([
                                 Wizard::make([
                                     ...self::databaseStep(),
@@ -66,67 +71,46 @@ class ArchitectAction extends Action
 
                         Tabs\Tab::make(__('Existing Resources'))
                             ->icon(Heroicon::ListBullet)
+                            ->id('tab-list')
                             ->schema([
                                 Livewire::make(BlueprintsTable::class)
                                     ->key('blueprints-table-view'),
                             ]),
+                    ])
+                    ->extraAttributes([
+                        'x-on:activate-first-tab.window' => <<<'JS'
+                            $data.tab = 'tab-create';
+                        JS,
                     ]),
             ])
             ->action(function (array $data, Action $action) {
                 try {
                     $blueprintData = BlueprintData::fromArray($data, shouldValidate: true);
-
-                    // Persist to DB
-                    ArchitectBlueprint::updateOrCreate(
-                        ['table_name' => $blueprintData->tableName],
-                        $blueprintData->toFormData()
-                    );
-
-                    // Update the form with saved ID if needed, but we regenerate anyway.
-
-                    if ($blueprintData->overwriteTable) {
-                        Schema::dropIfExists($blueprintData->tableName);
-
-                        $migrationFiles = glob(database_path('migrations/*_create_'.$blueprintData->tableName.'_table.php'));
-                        foreach ($migrationFiles as $file) {
-                            if (File::exists($file)) {
-                                File::delete($file);
-                            }
-                        }
-
-                        DB::table('migrations')
-                            ->where('migration', 'like', '%_create_'.$blueprintData->tableName.'_table')
-                            ->delete();
-                    }
-
-                    MigrationGenerator::make()->generate($blueprintData);
-                    ModelGenerator::make()->generate($blueprintData);
-
-                    if ($blueprintData->generateFactory) {
-                        FactoryGenerator::make()->generate($blueprintData);
-                    }
-
-                    if ($blueprintData->generateSeeder) {
-                        SeederGenerator::make()->generate($blueprintData);
-                    }
-
-                    if ($blueprintData->generateResource) {
-                        FilamentResourceGenerator::make()->generate($blueprintData);
-                    }
-
-                    if ($blueprintData->runMigration) {
-                        Artisan::call('migrate', ['--force' => true]);
-                    }
+                    ['plan' => $plan, 'shouldRunMigration' => $shouldRunMigration] = app(BlueprintGenerationService::class)->generate($blueprintData);
 
                     Notification::make()->title('Succes!')->success()->send();
+
+                    if ($blueprintData->runMigration && ! $shouldRunMigration) {
+                        $warningBody = collect($plan->getDeferredRiskySchemaChanges())
+                            ->map(fn (PlannedSchemaOperation $operation) => '• '.$operation->description)
+                            ->implode("\n");
+
+                        Notification::make()
+                            ->title(__('Migration deferred for safety'))
+                            ->body($warningBody)
+                            ->warning()
+                            ->send();
+                    }
 
                     if ($blueprintData->generateResource) {
                         return redirect()->to('/admin/'.Str::kebab(Str::plural($blueprintData->modelName)));
                     }
 
+                    return null;
                 } catch (\Exception $e) {
-                    Notification::make()->title('Eroare')->body($e->getMessage())->danger()->send();
-                    $action->halt();
+                    Notification::make()->title('Error')->body($e->getMessage())->danger()->send();
+
+                    return null;
                 }
             })
             ->closeModalByClickingAway(false)
@@ -141,47 +125,52 @@ class ArchitectAction extends Action
                 ->description(__('Table Configuration'))
                 ->icon('heroicon-o-table-cells')
                 ->schema([
-                    TextInput::make('table_name')
-                        ->label(__('Table Name (plural)'))
-                        ->placeholder('ex: projects, task_items')
-                        ->required()
-                        ->live(onBlur: true)
-                        ->afterStateUpdated(function (Set $set, ?string $state) {
-                            $exists = Schema::hasTable($state);
-                            $set('table_exists', $exists);
+                    Group::make()
+                        ->columns(3)
+                        ->schema([
+                            TextInput::make('table_name')
+                                ->label(__('Table Name (plural)'))
+                                ->placeholder('ex: projects, task_items')
+                                ->required()
+                                ->live(onBlur: true)
+                                ->afterStateUpdated(function (Set $set, ?string $state) {
+                                    $exists = Schema::hasTable($state);
+                                    $set('table_exists', $exists);
 
-                            if (! $exists) {
-                                $set('overwrite_table', false);
-                            }
+                                    if (! $exists) {
+                                        $set('overwrite_table', false);
+                                    }
 
-                            $set('model_name', Str::studly(Str::singular($state)));
-                        }),
+                                    $set('model_name', Str::studly(Str::singular($state)));
+                                }),
+
+                            Select::make('primary_key_type')
+                                ->label(__('Primary Key Type'))
+                                ->options([
+                                    'id' => 'Auto-increment (BigInt)',
+                                    'uuid' => 'UUID (String)',
+                                    'ulid' => 'ULID (String)',
+                                ])
+                                ->default('id')
+                                ->required()
+                                ->live(),
+
+                            Toggle::make('soft_deletes')
+                                ->label(__('Soft Deletes'))
+                                ->live()
+                                ->inline(false)
+                                ->default(false),
+                        ]),
 
                     Toggle::make('overwrite_table')
                         ->label(__('Overwrite existing table'))
                         ->helperText(__('Warning: The current table and all included data will be deleted (DROP TABLE)!'))
-                        ->visible(fn ($get) => $get('table_exists'))
+                        ->visible(fn ($get) => $get('table_exists') && $get('generation_mode') === GenerationMode::Replace->value)
                         ->onColor('danger')
-                        ->default(true)
+                        ->default(false)
                         ->live(),
 
                     Hidden::make('table_exists')
-                        ->default(false),
-
-                    Select::make('primary_key_type')
-                        ->label(__('Primary Key Type'))
-                        ->options([
-                            'id' => 'Auto-increment (BigInt)',
-                            'uuid' => 'UUID (String)',
-                            'ulid' => 'ULID (String)',
-                        ])
-                        ->default('id')
-                        ->required()
-                        ->live(),
-
-                    Toggle::make('soft_deletes')
-                        ->label(__('Soft Deletes'))
-                        ->live()
                         ->default(false),
 
                     Repeater::make('columns')
@@ -208,7 +197,7 @@ class ArchitectAction extends Action
                                             'dateTime' => 'DateTime',
                                             'foreignId' => 'Foreign ID (Relation)',
                                             'foreignUuid' => 'Foreign UUID (Relation)',
-                                            'foreignUld' => 'Foreign ULID (Relation)',
+                                            'foreignUlid' => 'Foreign ULID (Relation)',
                                         ])
                                         ->required()
                                         ->live(),
@@ -231,9 +220,36 @@ class ArchitectAction extends Action
                                         ->live()
                                         ->label('Index'),
                                 ]),
+
+                            Grid::make(2)
+                                ->schema([
+                                    Select::make('relationship_table')
+                                        ->label(__('Related Table'))
+                                        ->helperText(__('Optional. Use an existing database table to drive relationship field generation.'))
+                                        ->options(fn () => self::relationshipTableOptions())
+                                        ->placeholder(__('Choose a related table'))
+                                        ->searchable()
+                                        ->preload()
+                                        ->live()
+                                        ->visible(fn ($get) => self::isForeignRelationshipType($get('type')))
+                                        ->afterStateUpdated(fn (Set $set) => $set('relationship_title_column', null)),
+
+                                    Select::make('relationship_title_column')
+                                        ->label(__('Relationship Title Column'))
+                                        ->helperText(__('Optional. This column will be used as the Filament relationship title attribute.'))
+                                        ->options(fn ($get) => self::relationshipTitleColumnOptions($get('relationship_table')))
+                                        ->placeholder(fn ($get) => filled($get('relationship_table')) ? __('Choose a title column') : __('Select a related table first'))
+                                        ->searchable()
+                                        ->preload()
+                                        ->live()
+                                        ->visible(fn ($get) => self::isForeignRelationshipType($get('type'))),
+                                ]),
                         ])
                         ->itemLabel(fn (array $state): ?string => $state['name'] ?? null)
                         ->collapsible()
+                        ->addAction(fn (Action $action, Repeater $component) => $action->extraAttributes([
+                            'x-on:click' => sprintf("\$dispatch('repeater-collapse', '%s')", $component->getStatePath()),
+                        ], merge: true))
                         ->defaultItems(1)
                         ->reorderable(),
                 ]),
@@ -252,6 +268,14 @@ class ArchitectAction extends Action
                         ->helperText(__('Automatically generated from the table name, but can be modified.'))
                         ->live(onBlur: true)
                         ->required(),
+
+                    Select::make('generation_mode')
+                        ->label(__('Generation Mode'))
+                        ->options(GenerationMode::options())
+                        ->helperText(__('Choose whether Architect should only create missing files, merge managed parts, or replace generated artifacts.'))
+                        ->default(GenerationMode::default()->value)
+                        ->native(false)
+                        ->live(),
 
                     Grid::make(2)
                         ->schema([
@@ -288,12 +312,47 @@ class ArchitectAction extends Action
                         ->default(true)
                         ->live(),
 
+                    Toggle::make('allow_likely_renames')
+                        ->label(__('Allow likely column renames'))
+                        ->helperText(__('Enable this only if the suggested rename in the plan preview is correct.'))
+                        ->visible(fn ($get) => self::planHasSchemaAction($get, 'rename'))
+                        ->default(false)
+                        ->live(),
+
+                    Toggle::make('allow_destructive_changes')
+                        ->label(__('Allow destructive schema changes'))
+                        ->helperText(__('Enable this to allow dropping columns or removing soft deletes in the generated sync migration.'))
+                        ->visible(fn ($get) => self::planHasSchemaAction($get, 'remove'))
+                        ->default(false)
+                        ->live(),
+
+                    TextEntry::make('blocking_plan_warning')
+                        ->hiddenLabel()
+                        ->visible(fn ($get) => self::hasBlockingSchemaChanges($get))
+                        ->state(fn ($get) => self::resolvePlanFromState($get))
+                        ->formatStateUsing(fn ($state) => view('architect::components.blocking-schema-warning', [
+                            'plan' => $state instanceof RegenerationPlan ? $state : null,
+                        ]))
+                        ->html(),
+
                     Tabs::make('Code Preview')
                         ->tabs([
+                            /*Tabs\Tab::make('Plan')
+                                ->icon(Heroicon::ClipboardDocumentList)
+                                ->schema([
+                                    TextEntry::make('plan_preview')
+                                        ->live()
+                                        ->state(fn ($get) => self::resolvePlanFromState($get))
+                                        ->formatStateUsing(fn ($state) => view('architect::components.regeneration-plan', [
+                                            'plan' => $state instanceof RegenerationPlan ? $state : null,
+                                        ]))
+                                        ->html(),
+                                ]),*/
+
                             Tabs\Tab::make('Migration')
                                 ->icon(Heroicon::CircleStack)
                                 ->schema([
-                                    \Filament\Infolists\Components\TextEntry::make('migration_preview')
+                                    TextEntry::make('migration_preview')
                                         ->live()
                                         ->state(function ($get) {
                                             try {
@@ -319,7 +378,7 @@ class ArchitectAction extends Action
                             Tabs\Tab::make('Model')
                                 ->icon(Heroicon::Cube)
                                 ->schema([
-                                    \Filament\Infolists\Components\TextEntry::make('model_code')
+                                    TextEntry::make('model_code')
                                         ->live()
                                         ->state(function ($get) {
                                             $data = $get('');
@@ -346,7 +405,7 @@ class ArchitectAction extends Action
                             Tabs\Tab::make('Factory')
                                 ->icon(Heroicon::Wrench)
                                 ->schema([
-                                    \Filament\Infolists\Components\TextEntry::make('factory_code')
+                                    TextEntry::make('factory_code')
                                         ->live()
                                         ->state(function ($get) {
                                             try {
@@ -375,7 +434,7 @@ class ArchitectAction extends Action
                                 ->icon(Heroicon::Variable)
                                 ->visible(fn ($get) => $get('gen_seeder'))
                                 ->schema([
-                                    \Filament\Infolists\Components\TextEntry::make('seeder_preview')
+                                    TextEntry::make('seeder_preview')
                                         ->state(fn ($get) => SeederGenerator::make()->preview(BlueprintData::fromArray($get(''))))
                                         ->formatStateUsing(fn ($state) => view('architect::components.code-preview', ['code' => $state]))
                                         ->html(),
@@ -385,7 +444,7 @@ class ArchitectAction extends Action
                                 ->icon('heroicon-o-rectangle-group')
                                 ->visible(fn ($get) => $get('gen_resource'))
                                 ->schema([
-                                    \Filament\Infolists\Components\TextEntry::make('resource_preview')
+                                    TextEntry::make('resource_preview')
                                         ->state(fn ($get) => FilamentResourceGenerator::make()->preview(BlueprintData::fromArray($get(''))))
                                         ->formatStateUsing(fn ($state) => view('architect::components.code-preview', ['code' => $state]))
                                         ->html(),
@@ -393,5 +452,65 @@ class ArchitectAction extends Action
                         ]),
                 ]),
         ];
+    }
+
+    private static function resolvePlanFromState($get): ?RegenerationPlan
+    {
+        try {
+            $data = $get('');
+            if (empty($data['table_name'])) {
+                return null;
+            }
+
+            return app(RegenerationPlanner::class)->plan(BlueprintData::fromArray($data, shouldValidate: false));
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private static function planHasSchemaAction($get, string $action): bool
+    {
+        $plan = self::resolvePlanFromState($get);
+
+        if (! $plan instanceof RegenerationPlan) {
+            return false;
+        }
+
+        return collect($plan->schemaOperations)
+            ->contains(fn (PlannedSchemaOperation $operation) => $operation->action === $action);
+    }
+
+    private static function isForeignRelationshipType(mixed $type): bool
+    {
+        return in_array((string) $type, ['foreignId', 'foreignUuid', 'foreignUlid'], true);
+    }
+
+    private static function relationshipTableOptions(): array
+    {
+        return collect(Schema::getTableListing(schemaQualified: false))
+            ->mapWithKeys(fn (string $table) => [$table => Str::headline(Str::replace('_', ' ', $table))])
+            ->all();
+    }
+
+    private static function relationshipTitleColumnOptions(mixed $table): array
+    {
+        $table = filled($table) ? (string) $table : null;
+
+        if ($table === null || ! Schema::hasTable($table)) {
+            return [];
+        }
+
+        return collect(Schema::getColumns($table))
+            ->pluck('name')
+            ->filter(fn ($name) => is_string($name))
+            ->mapWithKeys(fn (string $column) => [$column => Str::headline(Str::replace('_', ' ', $column))])
+            ->all();
+    }
+
+    private static function hasBlockingSchemaChanges($get): bool
+    {
+        $plan = self::resolvePlanFromState($get);
+
+        return $plan instanceof RegenerationPlan && $plan->hasBlockingSchemaChanges();
     }
 }
