@@ -3,7 +3,6 @@
 namespace Lartisan\Architect\Actions;
 
 use Filament\Actions\Action;
-use Filament\Facades\Filament;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
@@ -36,6 +35,10 @@ use Lartisan\Architect\ValueObjects\RegenerationPlan;
 
 class ArchitectAction extends Action
 {
+    private const string CREATE_EDIT_TAB_KEY = 'architect-create-edit-tab';
+
+    private const string EXISTING_RESOURCES_TAB_KEY = 'architect-existing-resources-tab';
+
     public static function getDefaultName(): ?string
     {
         return 'openArchitect';
@@ -55,6 +58,7 @@ class ArchitectAction extends Action
                 Tabs::make('Tabs')
                     ->tabs([
                         Tabs\Tab::make(__('Create / Edit'))
+                            ->key(self::CREATE_EDIT_TAB_KEY)
                             ->icon(Heroicon::PencilSquare)
                             ->id('tab-create')
                             ->schema([
@@ -71,6 +75,7 @@ class ArchitectAction extends Action
                             ]),
 
                         Tabs\Tab::make(__('Existing Resources'))
+                            ->key(self::EXISTING_RESOURCES_TAB_KEY)
                             ->icon(Heroicon::ListBullet)
                             ->id('tab-list')
                             ->schema([
@@ -79,9 +84,7 @@ class ArchitectAction extends Action
                             ]),
                     ])
                     ->extraAttributes([
-                        'x-on:activate-first-tab.window' => <<<'JS'
-                            $data.tab = 'tab-create';
-                        JS,
+                        'x-on:activate-first-tab.window' => "\$data.tab = '" . self::CREATE_EDIT_TAB_KEY . "';",
                     ]),
             ])
             ->action(function (array $data, Action $action) {
@@ -305,8 +308,16 @@ class ArchitectAction extends Action
     {
         return [
             Wizard\Step::make('Review')
-                ->description(__('Preview of the files'))
+                ->description(__('Review the regeneration summary and generated files'))
                 ->schema([
+                    TextEntry::make('regeneration_plan')
+                        ->hiddenLabel()
+                        ->state(fn ($get) => self::resolvePlanFromState($get))
+                        ->formatStateUsing(fn ($state) => view('architect::components.regeneration-plan', [
+                            'plan' => $state instanceof RegenerationPlan ? $state : null,
+                        ]))
+                        ->html(),
+
                     Toggle::make('run_migration')
                         ->label(__('Run migration immediately'))
                         ->helperText(__('If enabled, the table will be created in the database immediately after generating the files.'))
@@ -315,7 +326,7 @@ class ArchitectAction extends Action
 
                     Toggle::make('allow_likely_renames')
                         ->label(__('Allow likely column renames'))
-                        ->helperText(__('Enable this only if the suggested rename in the plan preview is correct.'))
+                        ->helperText(__('Enable this only if the suggested rename in the regeneration summary is correct.'))
                         ->visible(fn ($get) => self::planHasSchemaAction($get, 'rename'))
                         ->default(false)
                         ->live(),
@@ -327,29 +338,8 @@ class ArchitectAction extends Action
                         ->default(false)
                         ->live(),
 
-                    TextEntry::make('blocking_plan_warning')
-                        ->hiddenLabel()
-                        ->visible(fn ($get) => self::hasBlockingSchemaChanges($get))
-                        ->state(fn ($get) => self::resolvePlanFromState($get))
-                        ->formatStateUsing(fn ($state) => view('architect::components.blocking-schema-warning', [
-                            'plan' => $state instanceof RegenerationPlan ? $state : null,
-                        ]))
-                        ->html(),
-
                     Tabs::make('Code Preview')
                         ->tabs([
-                            /*Tabs\Tab::make('Plan')
-                                ->icon(Heroicon::ClipboardDocumentList)
-                                ->schema([
-                                    TextEntry::make('plan_preview')
-                                        ->live()
-                                        ->state(fn ($get) => self::resolvePlanFromState($get))
-                                        ->formatStateUsing(fn ($state) => view('architect::components.regeneration-plan', [
-                                            'plan' => $state instanceof RegenerationPlan ? $state : null,
-                                        ]))
-                                        ->html(),
-                                ]),*/
-
                             Tabs\Tab::make('Migration')
                                 ->icon(Heroicon::CircleStack)
                                 ->schema([
@@ -508,10 +498,4 @@ class ArchitectAction extends Action
             ->all();
     }
 
-    private static function hasBlockingSchemaChanges($get): bool
-    {
-        $plan = self::resolvePlanFromState($get);
-
-        return $plan instanceof RegenerationPlan && $plan->hasBlockingSchemaChanges();
-    }
 }

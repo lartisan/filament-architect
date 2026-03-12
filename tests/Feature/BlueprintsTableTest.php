@@ -11,6 +11,7 @@ use Lartisan\Architect\Generators\FilamentResourceGenerator;
 use Lartisan\Architect\Generators\MigrationGenerator;
 use Lartisan\Architect\Generators\ModelGenerator;
 use Lartisan\Architect\Generators\SeederGenerator;
+use Lartisan\Architect\Livewire\BlueprintsTable;
 use Lartisan\Architect\Models\Blueprint;
 use Lartisan\Architect\Support\GenerationPathResolver;
 use Lartisan\Architect\Tests\TestCase;
@@ -301,4 +302,13 @@ it('deletes multiple blueprints independently', function () {
     expect(Blueprint::find($blueprint2->id))->toBeNull();
     expect(Schema::hasTable('articles'))->toBeFalse();
     expect(File::exists($modelPath2))->toBeFalse();
+});
+
+it('dispatches the first-tab activation event for the empty-state create action', function () {
+    $component = \Mockery::mock(BlueprintsTable::class)->makePartial();
+    $component->shouldReceive('dispatch')
+        ->once()
+        ->with('activate-first-tab');
+
+    $component->activateFirstTab();
 });

@@ -43,10 +43,24 @@ it('renders a dedicated blocking section for unsafe required column additions', 
     ])->render();
 
     expect($html)
-        ->toContain('role="alert"')
+        ->toContain('Regeneration summary')
         ->toContain('Blocking changes')
-        ->toContain('Add column subject')
-        ->toContain('language-markdown')
         ->toContain('Artifacts')
-        ->toContain('Schema');
+        ->toContain('Will write / update')
+        ->toContain('Schema changes')
+        ->toContain('Awaiting confirmation')
+        ->toContain('Add column subject')
+        ->toContain('Migration')
+        ->toContain('Model')
+        ->not->toContain('language-markdown');
+});
+
+it('renders an empty state when there is no plan yet', function () {
+    $html = view('architect::components.regeneration-plan', [
+        'plan' => null,
+    ])->render();
+
+    expect($html)
+        ->toContain('Enter table details to preview the regeneration summary...')
+        ->not->toContain('Regeneration summary');
 });

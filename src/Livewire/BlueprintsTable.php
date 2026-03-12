@@ -44,7 +44,7 @@ class BlueprintsTable extends Component implements HasActions, HasForms, HasTabl
                         $this->dispatch('load-blueprint', id: $record->id)
                             ->to(ArchitectWizard::class);
 
-                        $this->dispatch('activate-first-tab');
+                        $this->activateFirstTab();
 
                         \Filament\Notifications\Notification::make()
                             ->title(__('Blueprint loaded: :table', ['table' => $record->table_name]))
@@ -63,8 +63,13 @@ class BlueprintsTable extends Component implements HasActions, HasForms, HasTabl
             ->emptyStateHeading(__('No blueprints yet, create one!'))
             ->emptyStateActions([
                 Action::make('create_blueprint')
-                    ->action(fn () => $this->dispatch('activate-first-tab')->to(ArchitectWizard::class)),
+                    ->action(fn () => $this->activateFirstTab()),
             ]);
+    }
+
+    public function activateFirstTab(): void
+    {
+        $this->dispatch('activate-first-tab');
     }
 
     public function render()
