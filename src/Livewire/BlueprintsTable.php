@@ -2,8 +2,10 @@
 
 namespace Lartisan\Architect\Livewire;
 
+use Filament\Actions\Action;
 use Filament\Actions\Concerns\InteractsWithActions;
 use Filament\Actions\Contracts\HasActions;
+use Filament\Actions\DeleteAction;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Support\Icons\Heroicon;
@@ -34,7 +36,7 @@ class BlueprintsTable extends Component implements HasActions, HasForms, HasTabl
                 TextColumn::make('created_at')->dateTime()->label(__('Created At')),
             ])
             ->recordActions([
-                \Filament\Actions\Action::make('load')
+                Action::make('load')
                     ->label(__('Load'))
                     ->icon('heroicon-m-arrow-path')
                     ->color('success')
@@ -50,14 +52,19 @@ class BlueprintsTable extends Component implements HasActions, HasForms, HasTabl
                             ->send();
                     }),
 
-                \Filament\Actions\DeleteAction::make()
+                DeleteAction::make()
                     ->requiresConfirmation()
                     ->modalIcon(Heroicon::ShieldExclamation)
                     ->modalDescription('Are you sure you want to delete this blueprint?')
                     ->modalContent(view('architect::blueprint-delete'))
                     ->action(fn (Blueprint $record) => $this->deleteBlueprint($record))
-                    ->successNotificationTitle(__('Resource and associated files deleted successfully'))
-                    ->successRedirectUrl(fn () => \Filament\Pages\Dashboard::getUrl()),
+                    ->successNotificationTitle(__('Resource and associated files deleted successfully')),
+                    // ->successRedirectUrl(fn () => \Filament\Pages\Dashboard::getUrl()),
+            ])
+            ->emptyStateHeading(__('No blueprints yet, create one!'))
+            ->emptyStateActions([
+                Action::make('create_blueprint')
+                    ->action(fn () => $this->dispatch('activate-first-tab')->to(ArchitectWizard::class)),
             ]);
     }
 
