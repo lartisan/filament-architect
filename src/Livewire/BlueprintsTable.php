@@ -59,7 +59,6 @@ class BlueprintsTable extends Component implements HasActions, HasForms, HasTabl
                     ->modalContent(view('architect::blueprint-delete'))
                     ->action(fn (Blueprint $record) => $this->deleteBlueprint($record))
                     ->successNotificationTitle(__('Resource and associated files deleted successfully')),
-                    // ->successRedirectUrl(fn () => \Filament\Pages\Dashboard::getUrl()),
             ])
             ->emptyStateHeading(__('No blueprints yet, create one!'))
             ->emptyStateActions([
