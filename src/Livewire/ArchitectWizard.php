@@ -20,9 +20,15 @@ class ArchitectWizard extends Component implements HasActions, HasForms
 
     public bool $isIconButton = false;
 
+    public string | array | null $actionColor = null;
+
     public function openArchitectAction(): Action
     {
         $action = ArchitectAction::make();
+
+        if ($this->actionColor !== null) {
+            $action->color($this->actionColor);
+        }
 
         if ($this->isIconButton) {
             $action->iconButton()
