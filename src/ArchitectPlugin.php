@@ -20,6 +20,8 @@ class ArchitectPlugin implements Plugin
 
     protected bool $isIconButton = false;
 
+    protected string | array | null $actionColor = null;
+
     public function getId(): string
     {
         return 'architect';
@@ -46,6 +48,18 @@ class ArchitectPlugin implements Plugin
         return $this;
     }
 
+    public function actionColor(string | array | null $color): static
+    {
+        $this->actionColor = $color;
+
+        return $this;
+    }
+
+    public function getActionColor(): string | array | null
+    {
+        return $this->actionColor;
+    }
+
     public function register(Panel $panel): void
     {
         $panel
@@ -67,7 +81,13 @@ class ArchitectPlugin implements Plugin
     {
         FilamentView::registerRenderHook(
             $this->renderHook,
-            fn (): string => Blade::render("@livewire('architect-wizard', ['isIconButton' => ".($this->isIconButton ? 'true' : 'false').'])'),
+            fn (): string => Blade::render(
+                "@livewire('architect-wizard', ['isIconButton' => \$isIconButton, 'actionColor' => \$actionColor])",
+                [
+                    'isIconButton' => $this->isIconButton,
+                    'actionColor' => $this->getActionColor(),
+                ],
+            ),
         );
     }
 

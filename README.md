@@ -253,6 +253,17 @@ ArchitectPlugin::make()
     ->iconButton(true)
 ```
 
+#### Action Color
+
+Customize the color of the Architect action button or icon button:
+
+```php
+ArchitectPlugin::make()
+    ->actionColor('success')
+```
+
+When no custom color is provided, the action keeps Filament's default `primary` color.
+
 #### Custom Render Hook
 
 Change where the Architect action is rendered in your panel:
