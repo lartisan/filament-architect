@@ -1,4 +1,5 @@
 # Filament Architect
+![Filament Architect](docs/images/ArchitectPRO_light.png)
 
 A [Filament](https://filamentphp.com) plugin for scaffolding and evolving Laravel resources from inside your Filament panel.
 
@@ -103,6 +104,8 @@ When files already exist, you can choose how Architect behaves:
 ### Merge-aware updates for existing code
 The plugin now updates existing generated files instead of blindly overwriting them.
 
+For models, factories, and Filament resources, the merge flow is parser-aware and uses `nikic/php-parser` to preserve custom code while refreshing generated structure. Seeders use a managed generated-region strategy.
+
 Current merge support includes:
 
 - **Model**
@@ -169,6 +172,55 @@ It also normalizes merged output for several blueprint types so updated files st
 ### Production-aware visibility
 The Architect action is hidden in production by default unless explicitly enabled.
 
+---
+
+## Planned premium edition
+
+Architect today is focused on strong open-source CRUD scaffolding and safe regeneration loops.
+
+A future premium edition is planned to build on that foundation with workflows that are especially useful for larger teams, legacy projects, and more complex data models.
+
+Planned premium areas currently include:
+
+- **Visual revision history**
+  - browse stored blueprint revisions
+  - inspect snapshot diffs and generated changes visually
+
+- **Rollback / restore workflows**
+  - restore a previous blueprint revision
+  - streamline reverting generated files and related schema changes
+
+- **Legacy adoption / reverse engineering**
+  - import existing models, tables, and resources into Architect
+  - generate an editable blueprint from an existing Laravel project
+
+- **Advanced relationship tooling**
+  - many-to-many and pivot-table support
+  - polymorphic relationship support
+  - richer Filament relationship generation flows
+
+- **Team-oriented workflows**
+  - approvals and change review flows
+  - blueprint locks, audit trails, and collaboration-oriented tooling
+
+- **Priority support**
+  - commercial support for teams that want faster feedback and help
+
+> These features are planned / proposed, not shipped yet. The open-source package described in this README is the currently available product.
+
+### Waiting list / early-bird pricing
+
+Before the premium edition launches, a waiting list is planned.
+
+The idea is to offer **early-bird launch pricing** to people who join that waiting list before release.
+
+Until pricing and packaging are finalized, it is safest to describe this as:
+
+- planned early-access / waiting-list announcement
+- likely early-bird pricing for pre-launch signups
+- final details to be confirmed at launch
+
+[Join the waiting list](https://filamentcomponents.com/wailtlist/architect?source=github)
 ---
 
 ## Requirements
@@ -341,6 +393,10 @@ Per-column options:
 - index
 - drag-and-drop ordering
 
+For foreign-key-like columns, you can also provide:
+- optional related table metadata
+- an optional relationship title column to improve generated Filament relationship fields
+
 ### 2. Eloquent step
 You choose:
 
@@ -380,6 +436,8 @@ Current blueprint management features:
 - store blueprint revisions after successful generation
 
 Blueprint revisions are used to improve migration preview and sync generation accuracy across multiple iterations.
+
+> Current behavior: deleting a blueprint from the table is destructive. It also drops the related database table (if present), removes matching migration records, deletes generated files, and removes generated Filament resource pages.
 
 ---
 
@@ -435,6 +493,7 @@ Generated resource support includes:
 - infolist generation
 - soft delete filters and bulk actions
 - generated relationship fields for foreign-key-like columns
+- optional relationship title-column metadata for generated Filament relationship selects and table columns
 
 ---
 
@@ -536,6 +595,8 @@ The strongest supported workflows today are:
 - repeated blueprint-driven updates in `merge` mode
 - revision-aware migration preview and sync generation
 - preserving hand-written custom code around managed generated sections
+
+Planned premium work is aimed at visual revision tooling, rollback workflows, legacy-project adoption, advanced relationships, and team-oriented collaboration features.
 
 ---
 
