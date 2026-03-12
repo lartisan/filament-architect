@@ -3,6 +3,7 @@
 namespace Lartisan\Architect\Actions;
 
 use Filament\Actions\Action;
+use Filament\Facades\Filament;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
@@ -121,7 +122,7 @@ class ArchitectAction extends Action
                     Notification::make()->title('Succes!')->success()->send();
 
                     if ($blueprintData->generateResource) {
-                        return redirect()->to('/admin/'.Str::kebab(Str::plural($blueprintData->modelName)));
+                        return redirect()->to('/'.Filament::getCurrentPanel()->getId().'/'.Str::kebab(Str::plural($blueprintData->modelName)));
                     }
 
                 } catch (\Exception $e) {
