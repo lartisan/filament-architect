@@ -4,6 +4,7 @@ namespace Lartisan\Architect\Livewire;
 
 use Filament\Actions\Concerns\InteractsWithActions;
 use Filament\Actions\Contracts\HasActions;
+use Filament\Actions\DeleteAction;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Support\Icons\Heroicon;
@@ -11,11 +12,9 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\HtmlString;
 use Lartisan\Architect\Models\Blueprint;
 use Livewire\Component;
 
@@ -49,7 +48,7 @@ class BlueprintsTable extends Component implements HasActions, HasForms, HasTabl
                             ->send();
                     }),*/
 
-                \Filament\Actions\DeleteAction::make()
+                DeleteAction::make()
                     ->requiresConfirmation()
                     ->modalIcon(Heroicon::ShieldExclamation)
                     ->modalDescription('Are you sure you want to delete this blueprint?')

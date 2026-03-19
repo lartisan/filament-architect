@@ -9,6 +9,7 @@ use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
+use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Livewire;
@@ -294,7 +295,7 @@ class ArchitectAction extends Action
                             Tabs\Tab::make('Migration')
                                 ->icon(Heroicon::CircleStack)
                                 ->schema([
-                                    \Filament\Infolists\Components\TextEntry::make('migration_preview')
+                                    TextEntry::make('migration_preview')
                                         ->live()
                                         ->state(function ($get) {
                                             try {
@@ -320,7 +321,7 @@ class ArchitectAction extends Action
                             Tabs\Tab::make('Model')
                                 ->icon(Heroicon::Cube)
                                 ->schema([
-                                    \Filament\Infolists\Components\TextEntry::make('model_code')
+                                    TextEntry::make('model_code')
                                         ->live()
                                         ->state(function ($get) {
                                             $data = $get('');
@@ -347,7 +348,7 @@ class ArchitectAction extends Action
                             Tabs\Tab::make('Factory')
                                 ->icon(Heroicon::Wrench)
                                 ->schema([
-                                    \Filament\Infolists\Components\TextEntry::make('factory_code')
+                                    TextEntry::make('factory_code')
                                         ->live()
                                         ->state(function ($get) {
                                             try {
@@ -376,7 +377,7 @@ class ArchitectAction extends Action
                                 ->icon(Heroicon::Variable)
                                 ->visible(fn ($get) => $get('gen_seeder'))
                                 ->schema([
-                                    \Filament\Infolists\Components\TextEntry::make('seeder_preview')
+                                    TextEntry::make('seeder_preview')
                                         ->state(fn ($get) => SeederGenerator::make()->preview(BlueprintData::fromArray($get(''))))
                                         ->formatStateUsing(fn ($state) => view('architect::components.code-preview', ['code' => $state]))
                                         ->html(),
@@ -386,7 +387,7 @@ class ArchitectAction extends Action
                                 ->icon('heroicon-o-rectangle-group')
                                 ->visible(fn ($get) => $get('gen_resource'))
                                 ->schema([
-                                    \Filament\Infolists\Components\TextEntry::make('resource_preview')
+                                    TextEntry::make('resource_preview')
                                         ->state(fn ($get) => FilamentResourceGenerator::make()->preview(BlueprintData::fromArray($get(''))))
                                         ->formatStateUsing(fn ($state) => view('architect::components.code-preview', ['code' => $state]))
                                         ->html(),

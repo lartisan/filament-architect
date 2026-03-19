@@ -66,6 +66,7 @@ PHP;
                 return Str::camel(str_replace($suffix, '', $columnName));
             }
         }
+
         return Str::camel($columnName);
     }
 
@@ -213,4 +214,3 @@ PHP;
         }
     }
 }
-
