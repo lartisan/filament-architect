@@ -20,9 +20,15 @@ class ArchitectWizard extends Component implements HasActions, HasForms
 
     public bool $isIconButton = false;
 
+    public string|array|null $actionColor = null;
+
     public function openArchitectAction(): Action
     {
         $action = ArchitectAction::make();
+
+        if ($this->actionColor !== null) {
+            $action->color($this->actionColor);
+        }
 
         if ($this->isIconButton) {
             $action->iconButton()
@@ -39,6 +45,16 @@ class ArchitectWizard extends Component implements HasActions, HasForms
     public function render()
     {
         return view('architect::architect-wizard');
+    }
+
+    #[On('open-architect-wizard')]
+    public function openArchitect(): void
+    {
+        if (filled($this->mountedActions)) {
+            return;
+        }
+
+        $this->mountAction('openArchitect');
     }
 
     #[On('load-blueprint')]

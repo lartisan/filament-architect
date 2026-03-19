@@ -28,7 +28,7 @@ function cleanupAllGeneratedFiles(): void
         }
 
         // Clean migration records
-        \DB::table('migrations')
+        DB::table('migrations')
             ->where('migration', 'like', "%_create_{$table}_table")
             ->delete();
     }
@@ -151,7 +151,7 @@ it('can run migrations and create tables with proper schema', function () {
 
     // Cleanup for next test
     Schema::drop('posts');
-    \DB::table('migrations')->where('migration', 'like', '%_create_posts_table')->delete();
+    DB::table('migrations')->where('migration', 'like', '%_create_posts_table')->delete();
     File::delete($migrationPath);
     File::delete(app_path('Models/Post.php'));
 });
@@ -211,7 +211,7 @@ it('can perform full CRUD operations on generated models', function () {
 
     // Cleanup
     Schema::drop('blog_posts');
-    \DB::table('migrations')->where('migration', 'like', '%_create_blog_posts_table')->delete();
+    DB::table('migrations')->where('migration', 'like', '%_create_blog_posts_table')->delete();
     File::delete($migrationPath);
     File::delete($modelPath);
 });

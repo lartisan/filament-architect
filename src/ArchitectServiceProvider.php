@@ -8,6 +8,7 @@ use Filament\Support\Facades\FilamentAsset;
 use Filament\Support\Facades\FilamentIcon;
 use Illuminate\Support\Facades\Blade;
 use Lartisan\Architect\Commands\InstallCommand;
+use Lartisan\Architect\Livewire\ArchitectTrigger;
 use Lartisan\Architect\Livewire\ArchitectWizard;
 use Lartisan\Architect\View\Components\CodePreview;
 use Livewire\Livewire;
@@ -40,6 +41,7 @@ class ArchitectServiceProvider extends PackageServiceProvider
     {
         $this->loadViewsFrom(__DIR__.'/../resources/views', 'architect');
 
+        Livewire::component('architect-trigger', ArchitectTrigger::class);
         Livewire::component('architect-wizard', ArchitectWizard::class);
 
         if (class_exists(FilamentAsset::class)) {

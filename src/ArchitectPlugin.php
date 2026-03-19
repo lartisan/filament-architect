@@ -12,13 +12,20 @@ class ArchitectPlugin implements Plugin
 {
     protected string $renderHook = PanelsRenderHook::GLOBAL_SEARCH_BEFORE;
 
+    protected bool $hasCustomRenderHook = false;
+
     protected array $availableRenderHooks = [
         PanelsRenderHook::GLOBAL_SEARCH_BEFORE,
         PanelsRenderHook::GLOBAL_SEARCH_AFTER,
         PanelsRenderHook::USER_MENU_AFTER,
+        PanelsRenderHook::SIDEBAR_NAV_START,
+        PanelsRenderHook::SIDEBAR_NAV_END,
+        PanelsRenderHook::SIDEBAR_FOOTER,
     ];
 
     protected bool $isIconButton = false;
+
+    protected string|array|null $actionColor = null;
 
     public function getId(): string
     {
@@ -29,6 +36,7 @@ class ArchitectPlugin implements Plugin
     {
         if ($this->isAllowedRenderHool($hook)) {
             $this->renderHook = $hook;
+            $this->hasCustomRenderHook = true;
         }
 
         return $this;
@@ -46,6 +54,18 @@ class ArchitectPlugin implements Plugin
         return $this;
     }
 
+    public function actionColor(string|array|null $color): static
+    {
+        $this->actionColor = $color;
+
+        return $this;
+    }
+
+    public function getActionColor(): string|array|null
+    {
+        return $this->actionColor;
+    }
+
     public function register(Panel $panel): void
     {
         $panel
@@ -60,14 +80,35 @@ class ArchitectPlugin implements Plugin
             return;
         }
 
-        $this->registerArchitectAction();
+        if (! $this->hasCustomRenderHook) {
+            $this->renderHook = $panel->hasTopbar()
+                ? PanelsRenderHook::GLOBAL_SEARCH_BEFORE
+                : PanelsRenderHook::SIDEBAR_NAV_END;
+        }
+
+        $this->registerArchitectTrigger();
+        $this->registerArchitectModalHost();
     }
 
-    protected function registerArchitectAction(): void
+    protected function registerArchitectTrigger(): void
     {
         FilamentView::registerRenderHook(
             $this->renderHook,
-            fn (): string => Blade::render("@livewire('architect-wizard', ['isIconButton' => ".($this->isIconButton ? 'true' : 'false').'])'),
+            fn (): string => Blade::render(
+                "@livewire('architect-trigger', ['isIconButton' => \$isIconButton, 'actionColor' => \$actionColor])",
+                [
+                    'isIconButton' => $this->isIconButton,
+                    'actionColor' => $this->getActionColor(),
+                ],
+            ),
+        );
+    }
+
+    protected function registerArchitectModalHost(): void
+    {
+        FilamentView::registerRenderHook(
+            PanelsRenderHook::BODY_END,
+            fn (): string => Blade::render("@livewire('architect-wizard')"),
         );
     }
 

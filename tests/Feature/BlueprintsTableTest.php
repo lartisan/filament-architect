@@ -303,7 +303,6 @@ it('deletes multiple blueprints independently', function () {
     expect(Schema::hasTable('articles'))->toBeFalse();
     expect(File::exists($modelPath2))->toBeFalse();
 });
-
 it('dispatches the first-tab activation event for the empty-state create action', function () {
     $component = \Mockery::mock(BlueprintsTable::class)->makePartial();
     $component->shouldReceive('dispatch')

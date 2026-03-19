@@ -42,6 +42,15 @@ class ArchitectWizardTest extends TestCase
     }
 
     /** @test */
+    public function it_can_open_the_architect_action_from_the_modal_host()
+    {
+        $component = Livewire::test(ArchitectWizard::class)
+            ->call('openArchitect');
+
+        $this->assertSame('openArchitect', data_get($component->instance()->mountedActions, '0.name'));
+    }
+
+    /** @test */
     public function it_can_save_a_blueprint_to_the_database()
     {
         $data = [

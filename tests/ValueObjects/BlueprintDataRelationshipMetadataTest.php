@@ -1,9 +1,7 @@
 <?php
 
-use Lartisan\Architect\Tests\TestCase;
 use Lartisan\Architect\ValueObjects\BlueprintData;
 
-uses(TestCase::class);
 
 it('round-trips relationship metadata through blueprint form data', function () {
     $blueprint = BlueprintData::fromArray([

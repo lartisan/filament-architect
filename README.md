@@ -564,6 +564,118 @@ ArchitectPlugin::make()
 
 ---
 
+#### Action Color
+
+Customize the color of the Architect action button or icon button:
+
+```php
+ArchitectPlugin::make()
+    ->actionColor('success')
+```
+
+When no custom color is provided, the action keeps Filament's default `primary` color.
+
+#### Custom Render Hook
+
+Change where the Architect action is rendered in your panel:
+
+```php
+use Filament\View\PanelsRenderHook;
+
+ArchitectPlugin::make()
+    ->renderHook(PanelsRenderHook::GLOBAL_SEARCH_BEFORE)
+```
+
+By default, the action is rendered at `PanelsRenderHook::GLOBAL_SEARCH_BEFORE` when the panel topbar is enabled, and at `PanelsRenderHook::SIDEBAR_NAV_END` when the panel uses `->topbar(false)`.
+
+Available render hooks:
+- `PanelsRenderHook::GLOBAL_SEARCH_BEFORE` (default when the topbar is enabled)
+- `PanelsRenderHook::GLOBAL_SEARCH_AFTER`
+- `PanelsRenderHook::USER_MENU_AFTER`
+- `PanelsRenderHook::SIDEBAR_NAV_START`
+- `PanelsRenderHook::SIDEBAR_NAV_END` (default when the topbar is hidden)
+- `PanelsRenderHook::SIDEBAR_FOOTER`
+
+## Usage
+
+### Accessing the Wizard
+
+Once installed and configured, the Architect plugin adds an action button to your Filament panel. Click the "Architect" button to open the generation wizard.
+
+### Step 1: Database Configuration
+
+Define your database table structure:
+
+- **Table Name**: The name of your database table
+- **Model Name**: The name of your Eloquent model class
+- **Primary Key Type**: Choose between `id` (default), `uuid`, or `ulid`
+- **Soft Deletes**: Enable soft delete support for your model
+
+Configure what to generate:
+
+- **Columns**: Define table columns with:
+  - Column name
+  - Data type (string, integer, boolean, datetime, text, etc.)
+  - Nullable option
+  - Default values
+  - Indexing options
+
+### Step 2: Eloquent Configuration
+
+- **Model Name**: Automatically generated from table name (e.g., `projects` → `Project`)
+
+- **Generation Options** (configurable via `config/architect.php`):
+  - `gen_factory`: Generate model factory (default: true)
+  - `gen_seeder`: Generate database seeder (default: true)
+  - `gen_resource`: Generate Filament resource with CRUD pages (default: true)
+
+**Note**: Migrations and Models are always generated as they are core to the plugin's functionality.
+
+### Step 3: Review & Generate
+
+Review your configuration and click "Save & Generate" to:
+
+1. Save the blueprint to the database
+2. Generate all selected files
+3. Optionally run migrations immediately
+4. Create Filament resource pages (list, create, edit, view)
+
+### Managing Blueprints
+
+In the "Existing Resources" tab, you can:
+
+- **View** all previously created blueprints
+- **Edit** and regenerate any blueprint (coming soon)
+- **Delete** blueprints
+
+## Generated Files
+
+When you use the Architect wizard, it generates the following files:
+
+### Model
+- Location: `app/Models/{ModelName}.php`
+- Includes configured columns and relationships
+
+### Migration
+- Location: `database/migrations/{timestamp}_create_{table_name}_table.php`
+- Creates table with all specified columns
+
+### Factory
+- Location: `database/factories/{ModelName}Factory.php`
+- Includes factory definitions for all columns
+
+### Seeder
+- Location: `database/seeders/{ModelName}Seeder.php`
+- Seedable template with model factory integration
+
+### Filament Resource
+- **Resource Class**: `app/Filament/Resources/{ModelName}Resource.php`
+- **List Page**: Displays all records in a table
+- **Create Page**: Form for creating new records
+- **Edit Page**: Form for editing existing records
+- **View Page**: Read-only view of a record
+
+
 ## Development
 
 Run tests:
