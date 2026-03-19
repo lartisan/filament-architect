@@ -26,5 +26,3 @@ it('uses explicit tab keys for first-tab activation', function () {
         ->and($tabComponents[1]->getKey(isAbsolute: false))->toBe('architect-existing-resources-tab')
         ->and($tabs->getExtraAttributes()['x-on:activate-first-tab.window'] ?? null)->toBe("\$data.tab = 'architect-create-edit-tab';");
 });
-
-

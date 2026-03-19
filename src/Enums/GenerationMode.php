@@ -32,4 +32,3 @@ enum GenerationMode: string
         return $this === self::Merge;
     }
 }
-

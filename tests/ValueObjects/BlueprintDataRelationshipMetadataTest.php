@@ -2,7 +2,6 @@
 
 use Lartisan\Architect\ValueObjects\BlueprintData;
 
-
 it('round-trips relationship metadata through blueprint form data', function () {
     $blueprint = BlueprintData::fromArray([
         'table_name' => 'comments',

@@ -8,6 +8,7 @@ use Filament\Actions\Contracts\HasActions;
 use Filament\Actions\DeleteAction;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
+use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
@@ -46,7 +47,7 @@ class BlueprintsTable extends Component implements HasActions, HasForms, HasTabl
 
                         $this->activateFirstTab();
 
-                        \Filament\Notifications\Notification::make()
+                        Notification::make()
                             ->title(__('Blueprint loaded: :table', ['table' => $record->table_name]))
                             ->success()
                             ->send();

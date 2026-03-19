@@ -3,6 +3,7 @@
 namespace Lartisan\Architect\Actions;
 
 use Filament\Actions\Action;
+use Filament\Facades\Filament;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
@@ -84,7 +85,7 @@ class ArchitectAction extends Action
                             ]),
                     ])
                     ->extraAttributes([
-                        'x-on:activate-first-tab.window' => "\$data.tab = '" . self::CREATE_EDIT_TAB_KEY . "';",
+                        'x-on:activate-first-tab.window' => "\$data.tab = '".self::CREATE_EDIT_TAB_KEY."';",
                     ]),
             ])
             ->action(function (array $data, Action $action) {
@@ -283,7 +284,6 @@ class ArchitectAction extends Action
 
                     Grid::make(2)
                         ->schema([
-
                             Toggle::make('gen_factory')
                                 ->label(__('Generate Factory'))
                                 ->live()
@@ -405,12 +405,10 @@ class ArchitectAction extends Action
                                                     return null;
                                                 }
 
-                                                // Use relaxed constructor (shouldValidate: false)
                                                 $blueprint = BlueprintData::fromArray($data, shouldValidate: false);
 
                                                 return FactoryGenerator::make()->preview($blueprint);
                                             } catch (\Throwable $e) {
-                                                // Catch mapping errors or missing properties
                                                 return '// '.__('Factory preview will appear after defining columns... ');
                                             }
                                         })
@@ -497,5 +495,4 @@ class ArchitectAction extends Action
             ->mapWithKeys(fn (string $column) => [$column => Str::headline(Str::replace('_', ' ', $column))])
             ->all();
     }
-
 }

@@ -237,6 +237,7 @@ PHP;
             }
         }
     }
+
     private function resolveRelationshipDisplayColumn(ColumnDefinition $column, string $relationshipName): string
     {
         if (filled($column->relationshipTitleColumn)) {
