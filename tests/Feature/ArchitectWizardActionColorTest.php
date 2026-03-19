@@ -42,4 +42,3 @@ it('stores the configured action color on the plugin', function () {
 
     expect($plugin->getActionColor())->toBe('warning');
 });
-

@@ -311,6 +311,3 @@ it('deletes multiple blueprints independently', function () {
     expect(Schema::hasTable('articles'))->toBeFalse();
     expect(File::exists($modelPath2))->toBeFalse();
 });
-
-
-

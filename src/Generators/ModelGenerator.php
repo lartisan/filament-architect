@@ -53,6 +53,7 @@ readonly class ModelGenerator extends AbstractGenerator
                 return Str::camel(Str::beforeLast($columnName, $suffix));
             }
         }
+
         return null;
     }
 

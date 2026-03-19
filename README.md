@@ -275,10 +275,15 @@ ArchitectPlugin::make()
     ->renderHook(PanelsRenderHook::GLOBAL_SEARCH_BEFORE)
 ```
 
+By default, the action is rendered at `PanelsRenderHook::GLOBAL_SEARCH_BEFORE` when the panel topbar is enabled, and at `PanelsRenderHook::SIDEBAR_NAV_END` when the panel uses `->topbar(false)`.
+
 Available render hooks:
-- `PanelsRenderHook::GLOBAL_SEARCH_BEFORE` (default)
+- `PanelsRenderHook::GLOBAL_SEARCH_BEFORE` (default when the topbar is enabled)
 - `PanelsRenderHook::GLOBAL_SEARCH_AFTER`
 - `PanelsRenderHook::USER_MENU_AFTER`
+- `PanelsRenderHook::SIDEBAR_NAV_START`
+- `PanelsRenderHook::SIDEBAR_NAV_END` (default when the topbar is hidden)
+- `PanelsRenderHook::SIDEBAR_FOOTER`
 
 ## Usage
 

@@ -24,7 +24,7 @@ class TestCase extends Orchestra
         parent::setUp();
 
         // Run package migrations automatically for all tests
-        $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
+        $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
     }
 
     protected function getPackageProviders($app): array
