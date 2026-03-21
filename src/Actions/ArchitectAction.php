@@ -15,9 +15,11 @@ use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Group;
 use Filament\Schemas\Components\Livewire;
 use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Components\Wizard;
 use Filament\Support\Enums\Width;
+use Filament\Support\Exceptions\Halt;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -28,6 +30,7 @@ use Lartisan\Architect\Generators\MigrationGenerator;
 use Lartisan\Architect\Generators\ModelGenerator;
 use Lartisan\Architect\Generators\SeederGenerator;
 use Lartisan\Architect\Livewire\BlueprintsTable;
+use Lartisan\Architect\Support\ArchitectUiExtensionRegistry;
 use Lartisan\Architect\Support\BlueprintGenerationService;
 use Lartisan\Architect\Support\RegenerationPlanner;
 use Lartisan\Architect\ValueObjects\BlueprintData;
@@ -36,9 +39,9 @@ use Lartisan\Architect\ValueObjects\RegenerationPlan;
 
 class ArchitectAction extends Action
 {
-    private const string CREATE_EDIT_TAB_KEY = 'architect-create-edit-tab';
+    private const CREATE_EDIT_TAB_KEY = 'architect-create-edit-tab';
 
-    private const string EXISTING_RESOURCES_TAB_KEY = 'architect-existing-resources-tab';
+    private const EXISTING_RESOURCES_TAB_KEY = 'architect-existing-resources-tab';
 
     public static function getDefaultName(): ?string
     {
@@ -57,33 +60,7 @@ class ArchitectAction extends Action
             ->slideOver()
             ->schema([
                 Tabs::make('Tabs')
-                    ->tabs([
-                        Tabs\Tab::make(__('Create / Edit'))
-                            ->key(self::CREATE_EDIT_TAB_KEY)
-                            ->icon(Heroicon::PencilSquare)
-                            ->id('tab-create')
-                            ->schema([
-                                Wizard::make([
-                                    ...self::databaseStep(),
-                                    ...self::eloquentStep(),
-                                    ...self::reviewStep(),
-                                ])
-                                    ->submitAction(
-                                        Action::make('submit')
-                                            ->label('Save & Generate')
-                                            ->submit('save'),
-                                    ),
-                            ]),
-
-                        Tabs\Tab::make(__('Existing Resources'))
-                            ->key(self::EXISTING_RESOURCES_TAB_KEY)
-                            ->icon(Heroicon::ListBullet)
-                            ->id('tab-list')
-                            ->schema([
-                                Livewire::make(BlueprintsTable::class)
-                                    ->key('blueprints-table-view'),
-                            ]),
-                    ])
+                    ->tabs(self::tabs())
                     ->extraAttributes([
                         'x-on:activate-first-tab.window' => "\$data.tab = '".self::CREATE_EDIT_TAB_KEY."';",
                     ]),
@@ -121,6 +98,52 @@ class ArchitectAction extends Action
             ->closeModalByClickingAway(false)
             ->modalCancelActionLabel(__('Close'))
             ->modalSubmitAction(false);
+    }
+
+    /**
+     * @return array<int, Tabs\Tab>
+     */
+    protected static function tabs(): array
+    {
+        return [
+            self::createEditTab(),
+            self::existingResourcesTab(),
+            ...app(ArchitectUiExtensionRegistry::class)->tabs(),
+        ];
+    }
+
+    protected static function createEditTab(): Tabs\Tab
+    {
+        return Tabs\Tab::make(__('Create / Edit'))
+            ->key(self::CREATE_EDIT_TAB_KEY)
+            ->icon(Heroicon::PencilSquare)
+            ->id('tab-create')
+            ->schema([
+                Wizard::make([
+                    ...self::databaseStep(),
+                    ...self::eloquentStep(),
+                    ...self::reviewStep(),
+                ])
+                    ->submitAction(
+                        Action::make('submit')
+                            ->label('Save & Generate')
+                            ->submit('save'),
+                    ),
+                ...app(ArchitectUiExtensionRegistry::class)->createEditExtensions(),
+            ]);
+    }
+
+    protected static function existingResourcesTab(): Tabs\Tab
+    {
+        return Tabs\Tab::make(__('Existing Resources'))
+            ->key(self::EXISTING_RESOURCES_TAB_KEY)
+            ->icon(Heroicon::ListBullet)
+            ->id('tab-list')
+            ->schema([
+                Livewire::make(BlueprintsTable::class)
+                    ->key('blueprints-table-view'),
+                ...app(ArchitectUiExtensionRegistry::class)->existingResourcesExtensions(),
+            ]);
     }
 
     protected static function databaseStep(): array
@@ -267,6 +290,7 @@ class ArchitectAction extends Action
             Wizard\Step::make('Eloquent')
                 ->description(__('Model and associated classes'))
                 ->icon('heroicon-o-cube')
+                ->beforeValidation(fn (Get $get) => self::validateReviewRequirements($get))
                 ->schema([
                     TextInput::make('model_name')
                         ->label(__('Model Name'))
@@ -300,6 +324,29 @@ class ArchitectAction extends Action
                                 ->live()
                                 ->default(config('architect.generate_resource', true)),
                         ]),
+
+                    Grid::make(2)
+                        ->schema([
+                            Toggle::make('run_migration')
+                                ->label(__('Run migration immediately'))
+                                ->helperText(__('If enabled, the table will be created in the database immediately after generating the files.'))
+                                ->default(true)
+                                ->live(),
+
+                            Toggle::make('allow_likely_renames')
+                                ->label(__('Allow likely column renames'))
+                                ->helperText(__('Enable this only if the suggested rename is correct.'))
+                                ->visible(fn ($get) => self::planHasSchemaAction($get, 'rename'))
+                                ->default(false)
+                                ->live(),
+
+                            Toggle::make('allow_destructive_changes')
+                                ->label(__('Allow destructive schema changes'))
+                                ->helperText(__('Enable this to allow dropping columns or removing soft deletes in the generated sync migration.'))
+                                ->visible(fn ($get) => self::planHasSchemaAction($get, 'remove'))
+                                ->default(false)
+                                ->live(),
+                        ]),
                 ]),
         ];
     }
@@ -308,36 +355,8 @@ class ArchitectAction extends Action
     {
         return [
             Wizard\Step::make('Review')
-                ->description(__('Review the regeneration summary and generated files'))
+                ->description(__('Preview the generated files'))
                 ->schema([
-                    TextEntry::make('regeneration_plan')
-                        ->hiddenLabel()
-                        ->state(fn ($get) => self::resolvePlanFromState($get))
-                        ->formatStateUsing(fn ($state) => view('architect::components.regeneration-plan', [
-                            'plan' => $state instanceof RegenerationPlan ? $state : null,
-                        ]))
-                        ->html(),
-
-                    Toggle::make('run_migration')
-                        ->label(__('Run migration immediately'))
-                        ->helperText(__('If enabled, the table will be created in the database immediately after generating the files.'))
-                        ->default(true)
-                        ->live(),
-
-                    Toggle::make('allow_likely_renames')
-                        ->label(__('Allow likely column renames'))
-                        ->helperText(__('Enable this only if the suggested rename in the regeneration summary is correct.'))
-                        ->visible(fn ($get) => self::planHasSchemaAction($get, 'rename'))
-                        ->default(false)
-                        ->live(),
-
-                    Toggle::make('allow_destructive_changes')
-                        ->label(__('Allow destructive schema changes'))
-                        ->helperText(__('Enable this to allow dropping columns or removing soft deletes in the generated sync migration.'))
-                        ->visible(fn ($get) => self::planHasSchemaAction($get, 'remove'))
-                        ->default(false)
-                        ->live(),
-
                     Tabs::make('Code Preview')
                         ->tabs([
                             Tabs\Tab::make('Migration')
@@ -467,6 +486,52 @@ class ArchitectAction extends Action
 
         return collect($plan->schemaOperations)
             ->contains(fn (PlannedSchemaOperation $operation) => $operation->action === $action);
+    }
+
+    private static function validateReviewRequirements(Get $get): void
+    {
+        $plan = self::resolvePlanFromState($get);
+
+        if (! $plan instanceof RegenerationPlan) {
+            return;
+        }
+
+        $message = self::reviewValidationMessage($plan);
+
+        if ($message === null) {
+            return;
+        }
+
+        Notification::make()
+            ->title($message)
+            ->danger()
+            ->send();
+
+        throw new Halt;
+    }
+
+    private static function reviewValidationMessage(RegenerationPlan $plan): ?string
+    {
+        if ($plan->hasBlockingSchemaChanges()) {
+            return self::blockingSchemaChangesValidationMessage($plan);
+        }
+
+        if (! $plan->hasSchemaChanges()) {
+            return __('Architect did not detect any schema changes for this table. Update the schema before continuing.');
+        }
+
+        return null;
+    }
+
+    private static function blockingSchemaChangesValidationMessage(RegenerationPlan $plan): string
+    {
+        $columns = collect($plan->getBlockingSchemaChanges())
+            ->map(fn (PlannedSchemaOperation $operation) => Str::after($operation->description, 'Add column '))
+            ->implode(', ');
+
+        return __('This table already contains data. Make these new columns nullable, provide a default value, or backfill existing rows before continuing: :columns.', [
+            'columns' => $columns,
+        ]);
     }
 
     private static function isForeignRelationshipType(mixed $type): bool

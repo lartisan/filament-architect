@@ -10,6 +10,7 @@ use Filament\Forms\Contracts\HasForms;
 use Filament\Notifications\Notification;
 use Lartisan\Architect\Actions\ArchitectAction;
 use Lartisan\Architect\Models\Blueprint as ArchitectBlueprint;
+use Lartisan\Architect\Support\BlueprintDeletionService;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
@@ -76,7 +77,13 @@ class ArchitectWizard extends Component implements HasActions, HasForms
 
     public function deleteBlueprint(int $id): void
     {
-        ArchitectBlueprint::destroy($id);
+        $blueprint = ArchitectBlueprint::find($id);
+
+        if ($blueprint === null) {
+            return;
+        }
+
+        app(BlueprintDeletionService::class)->deleteSnapshotOnly($blueprint);
 
         Notification::make()
             ->title('Blueprint deleted!')

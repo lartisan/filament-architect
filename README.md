@@ -172,6 +172,49 @@ It also normalizes merged output for several blueprint types so updated files st
 ### Production-aware visibility
 The Architect action is hidden in production by default unless explicitly enabled.
 
+### Extension points for Premium / third-party packages
+Architect Core now exposes a small set of stable extension points so premium modules or internal packages can build on the OSS workflow without forking the generators.
+
+- **Capability resolver**
+  - resolve named capabilities such as `premium.blocks` or `premium.revisions.browser`
+  - defaults to a safe false-y resolver until another package defines a capability
+
+- **Block registry**
+  - merge additional block definitions into an existing block list while preserving base ordering
+  - useful for premium-only content blocks or internal blueprint presets
+
+- **UI extension registry**
+  - register additional Architect tabs
+  - append create/edit schema fragments
+  - append existing-resource fragments
+
+- **Post-generation hooks**
+  - run logic after a blueprint is generated and its revision is recorded
+  - useful for audit trails, premium revision tooling, or project-specific follow-up automation
+
+- **Versioned revision snapshots**
+  - blueprint revisions now expose a versioned snapshot payload plus metadata
+  - gives future diff / restore tooling a stable contract to build on
+
+Minimal access example:
+
+```php
+use Lartisan\Architect\ArchitectPlugin;
+
+ArchitectPlugin::capabilities()->define('premium.blocks', true);
+
+ArchitectPlugin::blocks()->register([
+    'type' => 'premium-carousel',
+    'label' => 'Premium Carousel',
+]);
+
+ArchitectPlugin::generationHooks()->afterGenerate(
+    function ($blueprint, $blueprintData, $plan, bool $shouldRunMigration): void {
+        // custom follow-up logic
+    }
+);
+```
+
 ---
 
 ## Planned premium edition

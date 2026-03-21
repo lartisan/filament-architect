@@ -4,6 +4,9 @@ namespace Lartisan\Architect\ValueObjects;
 
 readonly class ColumnDefinition
 {
+    /**
+     * @param  array<string, mixed>  $relationshipMeta
+     */
     public function __construct(
         public string $name,
         public string $type = 'string',
@@ -13,6 +16,7 @@ readonly class ColumnDefinition
         public mixed $default = null,
         public ?string $relationshipTable = null,
         public ?string $relationshipTitleColumn = null,
+        public array $relationshipMeta = [],
     ) {}
 
     public static function fromArray(array $data): self
@@ -26,6 +30,7 @@ readonly class ColumnDefinition
             default: $data['default'] ?? null,
             relationshipTable: filled($data['relationship_table'] ?? null) ? (string) $data['relationship_table'] : null,
             relationshipTitleColumn: filled($data['relationship_title_column'] ?? null) ? (string) $data['relationship_title_column'] : null,
+            relationshipMeta: is_array($data['relationship_meta'] ?? null) ? $data['relationship_meta'] : [],
         );
     }
 
@@ -94,6 +99,7 @@ readonly class ColumnDefinition
             'is_index' => $this->index,
             'relationship_table' => $this->relationshipTable,
             'relationship_title_column' => $this->relationshipTitleColumn,
+            'relationship_meta' => $this->relationshipMeta,
         ];
     }
 }

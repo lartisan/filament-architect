@@ -6,6 +6,7 @@ use Lartisan\Architect\Models\Blueprint;
 use Lartisan\Architect\Support\GenerationPathResolver;
 use Lartisan\Architect\Tests\TestCase;
 use Lartisan\Architect\ValueObjects\BlueprintData;
+use Lartisan\Architect\ValueObjects\BlueprintRevisionSnapshot;
 
 uses(TestCase::class);
 
@@ -66,9 +67,19 @@ it('records a blueprint revision snapshot', function () {
         'gen_resource' => true,
         'generation_mode' => 'merge',
         'run_migration' => false,
-    ]));
+    ]), [
+        'generated_at' => now()->toIso8601String(),
+        'source' => 'test-suite',
+    ]);
+
+    $snapshot = $revision->toSnapshot();
 
     expect($revision->revision)->toBe(1)
+        ->and($revision->snapshot_version)->toBe(BlueprintRevisionSnapshot::CURRENT_VERSION)
         ->and($revision->snapshot['table_name'] ?? null)->toBe('posts')
-        ->and($revision->snapshot['columns'][0]['name'] ?? null)->toBe('title');
+        ->and($revision->snapshot['columns'][0]['name'] ?? null)->toBe('title')
+        ->and($revision->meta['source'] ?? null)->toBe('test-suite')
+        ->and($snapshot->version)->toBe(BlueprintRevisionSnapshot::CURRENT_VERSION)
+        ->and($snapshot->meta['source'] ?? null)->toBe('test-suite')
+        ->and($snapshot->toBlueprintData()->tableName)->toBe('posts');
 });

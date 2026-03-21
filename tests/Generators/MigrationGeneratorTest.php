@@ -469,3 +469,73 @@ it('generates a sync migration from the latest revision diff instead of stale da
 
     File::delete($syncPath);
 });
+
+it('does not duplicate unique indexes when generating a sync migration for a new unique column', function () {
+    Schema::create('projects', function ($table) {
+        $table->id();
+        $table->string('title');
+        $table->timestamps();
+    });
+
+    $syncPath = (new MigrationGenerator)->generate(BlueprintData::fromArray([
+        'table_name' => 'projects',
+        'model_name' => 'Project',
+        'generation_mode' => 'merge',
+        'columns' => [
+            ['name' => 'title', 'type' => 'string'],
+            ['name' => 'slug', 'type' => 'string', 'is_nullable' => true, 'is_unique' => true],
+        ],
+    ]));
+
+    $content = File::get($syncPath);
+
+    expect(substr_count($content, '->unique()'))->toBe(1)
+        ->and($content)->toContain("\$table->string('slug')->nullable()->unique();")
+        ->and($content)->not->toContain("\$table->unique('slug');");
+
+    File::delete($syncPath);
+});
+
+it('does not duplicate unique indexes when previewing a new unique column from the latest revision diff', function () {
+    $storedBlueprint = ArchitectBlueprint::create([
+        'table_name' => 'projects',
+        'model_name' => 'Project',
+        'primary_key_type' => 'id',
+        'columns' => [
+            ['name' => 'title', 'type' => 'string', 'default' => null, 'is_nullable' => false, 'is_unique' => false, 'is_index' => false],
+        ],
+        'soft_deletes' => false,
+        'meta' => [
+            'gen_factory' => true,
+            'gen_seeder' => true,
+            'gen_resource' => true,
+            'generation_mode' => 'merge',
+            'allow_destructive_changes' => false,
+            'allow_likely_renames' => false,
+        ],
+    ]);
+
+    $storedBlueprint->recordRevision(BlueprintData::fromArray([
+        'table_name' => 'projects',
+        'model_name' => 'Project',
+        'generation_mode' => 'merge',
+        'columns' => [
+            ['name' => 'title', 'type' => 'string'],
+        ],
+    ]));
+
+    $preview = (new MigrationGenerator)->preview(BlueprintData::fromArray([
+        'table_name' => 'projects',
+        'model_name' => 'Project',
+        'generation_mode' => 'merge',
+        'columns' => [
+            ['name' => 'title', 'type' => 'string'],
+            ['name' => 'slug', 'type' => 'string', 'is_nullable' => true, 'is_unique' => true],
+        ],
+    ]));
+
+    expect(substr_count($preview, '->unique()'))->toBe(1)
+        ->and($preview)->toContain("\$table->string('slug')->nullable()->unique()->after('title');")
+        ->and($preview)->not->toContain("\$table->unique('slug');");
+});
+

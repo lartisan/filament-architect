@@ -55,6 +55,26 @@ it('generates a relationship for foreignId column', function () {
     File::delete($path);
 });
 
+it('generates a relationship using the selected related table model when provided', function () {
+    $blueprint = BlueprintData::fromArray([
+        'table_name' => 'posts',
+        'model_name' => 'Post',
+        'columns' => [
+            ['name' => 'author_id', 'type' => 'foreignId', 'relationship_table' => 'users'],
+        ],
+    ]);
+
+    $generator = new ModelGenerator;
+    $path = $generator->generate($blueprint);
+    $content = File::get($path);
+
+    expect($content)
+        ->toContain('public function author(): BelongsTo')
+        ->toContain('return $this->belongsTo(User::class);');
+
+    File::delete($path);
+});
+
 it('generates a relationship for foreignUuid column', function () {
     $blueprint = BlueprintData::fromArray([
         'table_name' => 'posts',

@@ -7,6 +7,10 @@ use Filament\Panel;
 use Filament\Support\Facades\FilamentView;
 use Filament\View\PanelsRenderHook;
 use Illuminate\Support\Facades\Blade;
+use Lartisan\Architect\Support\ArchitectBlockRegistry;
+use Lartisan\Architect\Support\ArchitectCapabilityRegistry;
+use Lartisan\Architect\Support\ArchitectUiExtensionRegistry;
+use Lartisan\Architect\Support\BlueprintGenerationHookRegistry;
 
 class ArchitectPlugin implements Plugin
 {
@@ -123,5 +127,25 @@ class ArchitectPlugin implements Plugin
         $plugin = filament(app(static::class)->getId());
 
         return $plugin;
+    }
+
+    public static function capabilities(): ArchitectCapabilityRegistry
+    {
+        return app(ArchitectCapabilityRegistry::class);
+    }
+
+    public static function blocks(): ArchitectBlockRegistry
+    {
+        return app(ArchitectBlockRegistry::class);
+    }
+
+    public static function uiExtensions(): ArchitectUiExtensionRegistry
+    {
+        return app(ArchitectUiExtensionRegistry::class);
+    }
+
+    public static function generationHooks(): BlueprintGenerationHookRegistry
+    {
+        return app(BlueprintGenerationHookRegistry::class);
     }
 }

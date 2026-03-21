@@ -6,6 +6,7 @@ use Filament\Actions\Action;
 use Filament\Actions\Concerns\InteractsWithActions;
 use Filament\Actions\Contracts\HasActions;
 use Filament\Actions\DeleteAction;
+use Filament\Facades\Filament;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Notifications\Notification;
@@ -14,11 +15,8 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Schema;
 use Lartisan\Architect\Models\Blueprint;
-use Lartisan\Architect\Support\GenerationPathResolver;
+use Lartisan\Architect\Support\BlueprintDeletionService;
 use Livewire\Component;
 
 class BlueprintsTable extends Component implements HasActions, HasForms, HasTable
@@ -80,38 +78,18 @@ class BlueprintsTable extends Component implements HasActions, HasForms, HasTabl
 
     public function deleteBlueprint(Blueprint $record): void
     {
-        $modelName = $record->model_name;
-        $tableName = $record->table_name;
+        app(BlueprintDeletionService::class)->deleteBlueprintAndArtifacts($record);
 
-        Schema::dropIfExists($tableName);
-        DB::table('migrations')
-            ->where('migration', 'like', "%_{$tableName}_table")
-            ->delete();
+        $this->redirect($this->getPanelRootUrl(), navigate: true);
+    }
 
-        $filesToDelete = [
-            GenerationPathResolver::model($modelName),
-            GenerationPathResolver::factory("{$modelName}Factory"),
-            GenerationPathResolver::seeder("{$modelName}Seeder"),
-            GenerationPathResolver::resource("{$modelName}Resource"),
-        ];
+    private function getPanelRootUrl(): string
+    {
+        $panel = Filament::getCurrentOrDefaultPanel();
+        $path = trim($panel?->getPath() ?? '', '/');
 
-        $resourceDirectory = GenerationPathResolver::resourceDirectory("{$modelName}Resource");
-
-        foreach ($filesToDelete as $file) {
-            if (File::exists($file)) {
-                File::delete($file);
-            }
-        }
-
-        if (File::isDirectory($resourceDirectory)) {
-            File::deleteDirectory($resourceDirectory);
-        }
-
-        $migrationFiles = File::glob(database_path("migrations/*_{$tableName}_table.php"));
-        foreach ($migrationFiles as $migration) {
-            File::delete($migration);
-        }
-
-        $record->delete();
+        return $path === ''
+            ? url('/')
+            : url('/'.$path);
     }
 }

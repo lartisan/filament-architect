@@ -10,6 +10,7 @@ uses(TestCase::class);
 
 afterEach(function () {
     File::delete(GenerationPathResolver::factory('ProjectFactory'));
+    File::delete(GenerationPathResolver::factory('PostFactory'));
 });
 
 it('generates a factory file', function () {
@@ -48,6 +49,24 @@ it('skips factory generation if not requested', function () {
     $path = $generator->generate($blueprint);
 
     expect($path)->toBeEmpty();
+});
+
+it('uses the selected related table model for foreign key factory definitions', function () {
+    $blueprint = BlueprintData::fromArray([
+        'table_name' => 'posts',
+        'model_name' => 'Post',
+        'gen_factory' => true,
+        'columns' => [
+            ['name' => 'author_id', 'type' => 'foreignId', 'relationship_table' => 'users'],
+        ],
+    ]);
+
+    $path = (new FactoryGenerator)->generate($blueprint);
+    $content = File::get($path);
+
+    expect($content)->toContain("'author_id' => \\App\\Models\\User::factory()");
+
+    File::delete($path);
 });
 
 it('merges missing factory definition keys without overwriting custom values', function () {

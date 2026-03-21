@@ -518,3 +518,43 @@ PHP);
     expect($content)->toContain("->relationship('post', 'headline')")
         ->and($content)->toContain("Tables\\Columns\\TextColumn::make('post.headline')");
 });
+
+it('keeps the foreign key field name in the form while using the selected relationship title column', function () {
+    File::ensureDirectoryExists(app_path('Models'));
+    File::put(app_path('Models/User.php'), <<<'PHP'
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class User extends Model {}
+PHP);
+
+    Schema::create('users', function (Blueprint $table) {
+        $table->id();
+        $table->string('name');
+    });
+
+    $blueprint = BlueprintData::fromArray([
+        'table_name' => 'posts',
+        'model_name' => 'Post',
+        'columns' => [
+            [
+                'name' => 'author_id',
+                'type' => 'foreignId',
+                'relationship_table' => 'users',
+                'relationship_title_column' => 'name',
+            ],
+        ],
+        'gen_resource' => true,
+    ]);
+
+    $content = File::get((new FilamentResourceGenerator)->generate($blueprint));
+
+    expect($content)
+        ->toContain("Forms\\Components\\Select::make('author_id')")
+        ->toContain("->relationship('author', 'name')")
+        ->toContain("Tables\\Columns\\TextColumn::make('author.name')")
+        ->not->toContain("Forms\\Components\\Select::make('author.name')");
+});

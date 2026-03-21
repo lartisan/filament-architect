@@ -3,14 +3,18 @@
 namespace Lartisan\Architect\Tests\Feature;
 
 use Illuminate\Database\Schema\Blueprint as SchemaBlueprint;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
+use Lartisan\Architect\Generators\MigrationGenerator;
+use Lartisan\Architect\Generators\ModelGenerator;
 use Lartisan\Architect\Livewire\ArchitectWizard;
 use Lartisan\Architect\Models\Blueprint;
 use Lartisan\Architect\Models\BlueprintRevision;
 use Lartisan\Architect\Support\GenerationPathResolver;
 use Lartisan\Architect\Tests\TestCase;
+use Lartisan\Architect\ValueObjects\BlueprintData;
 use Livewire\Livewire;
 
 class ArchitectWizardTest extends TestCase
@@ -18,6 +22,7 @@ class ArchitectWizardTest extends TestCase
     protected function tearDown(): void
     {
         File::delete(GenerationPathResolver::model('Comment'));
+        File::delete(GenerationPathResolver::model('Tag'));
         File::delete(GenerationPathResolver::factory('CommentFactory'));
         File::delete(GenerationPathResolver::seeder('CommentSeeder'));
         File::delete(GenerationPathResolver::resource('CommentResource'));
@@ -30,6 +35,18 @@ class ArchitectWizardTest extends TestCase
         if (Schema::hasTable('comments')) {
             Schema::drop('comments');
         }
+
+        if (Schema::hasTable('tags')) {
+            Schema::drop('tags');
+        }
+
+        foreach (File::glob(database_path('migrations/*_tags_table.php')) as $migration) {
+            File::delete($migration);
+        }
+
+        DB::table('migrations')
+            ->where('migration', 'like', '%_tags_table')
+            ->delete();
 
         parent::tearDown();
     }
@@ -153,11 +170,36 @@ class ArchitectWizardTest extends TestCase
     /** @test */
     public function it_can_delete_a_blueprint()
     {
+        $blueprintData = [
+            'table_name' => 'tags',
+            'model_name' => 'Tag',
+            'columns' => [
+                [
+                    'name' => 'name',
+                    'type' => 'string',
+                ],
+            ],
+            'gen_factory' => false,
+            'gen_seeder' => false,
+            'gen_resource' => false,
+            'run_migration' => true,
+        ];
+
+        $migrationPath = app(MigrationGenerator::class)->generate(BlueprintData::fromArray($blueprintData));
+        $modelPath = app(ModelGenerator::class)->generate(BlueprintData::fromArray($blueprintData));
+
+        Artisan::call('migrate', ['--path' => 'database/migrations']);
+
         $blueprint = Blueprint::create([
             'table_name' => 'tags',
             'model_name' => 'Tag',
             'primary_key_type' => 'id',
-            'columns' => [],
+            'columns' => [
+                [
+                    'name' => 'name',
+                    'type' => 'string',
+                ],
+            ],
             'soft_deletes' => false,
         ]);
 
@@ -168,6 +210,10 @@ class ArchitectWizardTest extends TestCase
         $this->assertDatabaseMissing('architect_blueprints', [
             'id' => $blueprint->id,
         ]);
+
+        $this->assertTrue(Schema::hasTable('tags'));
+        $this->assertFileExists($modelPath);
+        $this->assertFileExists($migrationPath);
     }
 
     /** @test */

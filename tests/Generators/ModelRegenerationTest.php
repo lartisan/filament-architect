@@ -119,6 +119,46 @@ PHP);
         ->and($content)->toContain("return \$this->belongsTo(User::class, 'owner_id');");
 });
 
+it('uses the selected related table model for newly merged relationship methods', function () {
+    $path = app_path('Models/Post.php');
+    File::ensureDirectoryExists(dirname($path));
+    File::put($path, <<<'PHP'
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Post extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'title',
+    ];
+}
+PHP);
+
+    $blueprint = BlueprintData::fromArray([
+        'table_name' => 'posts',
+        'model_name' => 'Post',
+        'generation_mode' => 'merge',
+        'columns' => [
+            ['name' => 'title', 'type' => 'string'],
+            ['name' => 'author_id', 'type' => 'foreignId', 'relationship_table' => 'users'],
+        ],
+    ]);
+
+    (new ModelGenerator)->generate($blueprint);
+
+    $content = File::get($path);
+
+    expect($content)
+        ->toContain('public function author(): BelongsTo')
+        ->toContain('return $this->belongsTo(User::class);');
+});
+
 it('writes models to the configured models namespace path', function () {
     config()->set('architect.models_namespace', 'App\\Domain\\Catalog\\Models');
 

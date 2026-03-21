@@ -220,3 +220,25 @@ it('marks required new columns without defaults as deferred risky additions on p
         ->and($plan->toPreviewString())->toContain('Add column subject [risky, deferred]')
         ->and($plan->toPreviewString())->toContain('SQLite cannot add a NOT NULL column in this situation');
 });
+
+it('marks matching schemas as a no-op plan', function () {
+    Schema::create('projects', function (Blueprint $table) {
+        $table->id();
+        $table->string('title');
+        $table->timestamps();
+    });
+
+    $plan = app(RegenerationPlanner::class)->plan(BlueprintData::fromArray([
+        'table_name' => 'projects',
+        'model_name' => 'Project',
+        'generation_mode' => 'merge',
+        'columns' => [
+            ['name' => 'title', 'type' => 'string'],
+        ],
+    ]));
+
+    expect($plan->hasSchemaChanges())->toBeFalse()
+        ->and($plan->schemaOperations)->toHaveCount(1)
+        ->and($plan->schemaOperations[0]->action)->toBe('noop');
+});
+

@@ -155,7 +155,6 @@ readonly class MigrationGenerator extends AbstractGenerator
                     $this->inferPreviousColumnName($orderedColumns, $index, $knownColumnNames, $addedColumnNames),
                 );
                 $downLines[] = "\$table->dropColumn('{$column->name}');";
-                $this->appendIndexDiffsFromDefinitions($column, null, $upLines, $downLines);
                 $addedColumnNames[] = $column->name;
 
                 continue;
@@ -492,7 +491,6 @@ readonly class MigrationGenerator extends AbstractGenerator
             if (! is_array($currentColumn)) {
                 $upLines[] = $column->toMigrationLine();
                 $downLines[] = "\$table->dropColumn('{$column->name}');";
-                $this->appendIndexDiffs($blueprint->tableName, $column, false, false, $upLines, $downLines);
 
                 continue;
             }
@@ -577,7 +575,7 @@ readonly class MigrationGenerator extends AbstractGenerator
             return [];
         }
 
-        if ($this->normalizeSchemaType($removedColumn['type_name'] ?? null) !== $this->normalizeSchemaType($addedColumn->type)) {
+        if (! $this->schemaTypeMatchesBlueprintType($removedColumn['type_name'] ?? null, $addedColumn->type)) {
             return [];
         }
 
@@ -617,10 +615,7 @@ readonly class MigrationGenerator extends AbstractGenerator
 
     private function needsColumnChange(ColumnDefinition $column, array $currentColumn): bool
     {
-        $currentType = $this->normalizeSchemaType($currentColumn['type_name'] ?? null);
-        $desiredType = $this->normalizeSchemaType($column->type);
-
-        return $currentType !== $desiredType
+        return ! $this->schemaTypeMatchesBlueprintType($currentColumn['type_name'] ?? null, $column->type)
             || (bool) ($currentColumn['nullable'] ?? false) !== $column->nullable
             || $this->normalizeDefaultValue($currentColumn['default'] ?? null) !== $column->default;
     }
@@ -643,13 +638,13 @@ readonly class MigrationGenerator extends AbstractGenerator
             'varchar', 'character varying' => 'string',
             'text', 'longtext' => 'text',
             'int', 'integer', 'mediumint', 'smallint', 'tinyint' => 'integer',
-            'bigint', 'unsignedbigint' => 'unsignedBigInteger',
+            'foreignid', 'bigint', 'unsignedbigint' => 'unsignedBigInteger',
             'bool', 'boolean' => 'boolean',
             'json', 'jsonb' => 'json',
             'date' => 'date',
             'datetime', 'timestamp' => 'dateTime',
-            'uuid' => 'uuid',
-            'ulid' => 'ulid',
+            'foreignuuid', 'uuid' => 'uuid',
+            'foreignulid', 'ulid' => 'ulid',
             'blob' => 'text',
             default => strtolower((string) $type),
         };
@@ -692,5 +687,27 @@ readonly class MigrationGenerator extends AbstractGenerator
         }
 
         return $normalized;
+    }
+
+    private function schemaTypeMatchesBlueprintType(?string $schemaType, string $blueprintType): bool
+    {
+        return in_array(
+            $this->normalizeSchemaType($schemaType),
+            $this->equivalentSchemaTypesForBlueprintType($blueprintType),
+            true,
+        );
+    }
+
+    /**
+     * @return array<string>
+     */
+    private function equivalentSchemaTypesForBlueprintType(string $blueprintType): array
+    {
+        return match (strtolower($blueprintType)) {
+            'foreignid' => ['integer', 'unsignedBigInteger'],
+            'foreignuuid', 'uuid' => ['uuid'],
+            'foreignulid', 'ulid' => ['ulid'],
+            default => [$this->normalizeSchemaType($blueprintType)],
+        };
     }
 }

@@ -7,6 +7,7 @@ use Illuminate\Support\Str;
 use Lartisan\Architect\Enums\GenerationMode;
 use Lartisan\Architect\Support\GenerationPathResolver;
 use Lartisan\Architect\Support\ModelUpdater;
+use Lartisan\Architect\Support\RelationshipModelResolver;
 use Lartisan\Architect\ValueObjects\BlueprintData;
 
 readonly class ModelGenerator extends AbstractGenerator
@@ -86,7 +87,7 @@ readonly class ModelGenerator extends AbstractGenerator
             }
 
             if ($relationshipName) {
-                $relatedModelClass = Str::studly($relationshipName);
+                $relatedModelClass = app(RelationshipModelResolver::class)->resolveModelName($column, $relationshipName);
 
                 $relationships[] = <<<PHP
     public function {$relationshipName}(): BelongsTo

@@ -21,6 +21,10 @@ class ModelUpdater
 {
     private const array FOREIGN_COLUMN_SUFFIXES = ['_id', '_uuid', '_ulid'];
 
+    public function __construct(
+        private readonly RelationshipModelResolver $relationshipModelResolver,
+    ) {}
+
     public function merge(string $existingContent, BlueprintData $blueprint): string
     {
         $parser = (new ParserFactory)->createForNewestSupportedVersion();
@@ -207,7 +211,7 @@ class ModelUpdater
 
                 return [
                     'method' => $relationshipName,
-                    'relatedModel' => Str::studly($relationshipName),
+                    'relatedModel' => $this->relationshipModelResolver->resolveModelName($column, $relationshipName),
                 ];
             })
             ->filter(fn (array $relationship) => ! in_array($relationship['method'], $existingMethods, true))

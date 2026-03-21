@@ -13,6 +13,7 @@ use Lartisan\Architect\Generators\ModelGenerator;
 use Lartisan\Architect\Generators\SeederGenerator;
 use Lartisan\Architect\Livewire\BlueprintsTable;
 use Lartisan\Architect\Models\Blueprint;
+use Lartisan\Architect\Support\BlueprintDeletionService;
 use Lartisan\Architect\Support\GenerationPathResolver;
 use Lartisan\Architect\Tests\TestCase;
 use Lartisan\Architect\ValueObjects\BlueprintData;
@@ -65,44 +66,6 @@ function cleanupTestFiles(): void
             @unlink($migration);
         }
     }
-}
-
-// Helper function to replicate BlueprintsTable@deleteBlueprint logic
-function deleteBlueprint(Blueprint $record): void
-{
-    $modelName = $record->model_name;
-    $tableName = $record->table_name;
-
-    Schema::dropIfExists($tableName);
-    DB::table('migrations')
-        ->where('migration', 'like', "%_{$tableName}_table")
-        ->delete();
-
-    $filesToDelete = [
-        GenerationPathResolver::model($modelName),
-        GenerationPathResolver::factory("{$modelName}Factory"),
-        GenerationPathResolver::seeder("{$modelName}Seeder"),
-        GenerationPathResolver::resource("{$modelName}Resource"),
-    ];
-
-    $resourceDirectory = GenerationPathResolver::resourceDirectory("{$modelName}Resource");
-
-    foreach ($filesToDelete as $file) {
-        if (File::exists($file)) {
-            File::delete($file);
-        }
-    }
-
-    if (File::isDirectory($resourceDirectory)) {
-        File::deleteDirectory($resourceDirectory);
-    }
-
-    $migrationFiles = File::glob(database_path("migrations/*_{$tableName}_table.php"));
-    foreach ($migrationFiles as $migration) {
-        File::delete($migration);
-    }
-
-    $record->delete();
 }
 
 it('deletes blueprint and all associated files when delete action is called', function () {
@@ -163,7 +126,7 @@ it('deletes blueprint and all associated files when delete action is called', fu
     expect(File::exists("$resourceDir/Pages/EditProduct.php"))->toBeTrue('Edit page should exist');
 
     // Delete blueprint
-    deleteBlueprint($blueprint);
+    app(BlueprintDeletionService::class)->deleteBlueprintAndArtifacts($blueprint);
 
     // Verify blueprint record was deleted from database
     expect(Blueprint::find($blueprint->id))->toBeNull('Blueprint record should be deleted from database');
@@ -226,7 +189,7 @@ it('handles deletion gracefully when some files do not exist', function () {
     expect(Schema::hasTable('test_models'))->toBeTrue();
 
     // Delete blueprint - should not throw errors even though factory/seeder/resource don't exist
-    deleteBlueprint($blueprint);
+    app(BlueprintDeletionService::class)->deleteBlueprintAndArtifacts($blueprint);
 
     // Verify cleanup
     expect(Blueprint::find($blueprint->id))->toBeNull();
@@ -285,7 +248,7 @@ it('deletes multiple blueprints independently', function () {
     expect(File::exists($modelPath2))->toBeTrue();
 
     // Delete first blueprint
-    deleteBlueprint($blueprint1);
+    app(BlueprintDeletionService::class)->deleteBlueprintAndArtifacts($blueprint1);
 
     // Verify first is deleted but second remains
     expect(Blueprint::find($blueprint1->id))->toBeNull();
@@ -296,7 +259,7 @@ it('deletes multiple blueprints independently', function () {
     expect(File::exists($modelPath2))->toBeTrue();
 
     // Delete second blueprint
-    deleteBlueprint($blueprint2);
+    app(BlueprintDeletionService::class)->deleteBlueprintAndArtifacts($blueprint2);
 
     // Verify second is also deleted
     expect(Blueprint::find($blueprint2->id))->toBeNull();
@@ -310,4 +273,58 @@ it('dispatches the first-tab activation event for the empty-state create action'
         ->with('activate-first-tab');
 
     $component->activateFirstTab();
+});
+
+it('redirects to the panel root after deleting a blueprint', function () {
+    $blueprint = Blueprint::create([
+        'table_name' => 'products',
+        'model_name' => 'Product',
+        'primary_key_type' => 'id',
+        'columns' => [
+            ['name' => 'name', 'type' => 'string'],
+        ],
+        'soft_deletes' => false,
+    ]);
+
+    $component = \Mockery::mock(BlueprintsTable::class)->makePartial();
+    $component->shouldReceive('redirect')
+        ->once()
+        ->with(url('/admin'), true);
+
+    $component->deleteBlueprint($blueprint);
+
+    expect(Blueprint::find($blueprint->id))->toBeNull();
+});
+
+it('can delete only the stored blueprint snapshot without deleting generated artifacts', function () {
+    $blueprintData = BlueprintData::fromArray([
+        'table_name' => 'products',
+        'model_name' => 'Product',
+        'columns' => [
+            ['name' => 'name', 'type' => 'string'],
+        ],
+        'gen_factory' => false,
+        'gen_seeder' => false,
+        'gen_resource' => false,
+    ]);
+
+    $migrationPath = (new MigrationGenerator)->generate($blueprintData);
+    $modelPath = (new ModelGenerator)->generate($blueprintData);
+
+    Artisan::call('migrate', ['--path' => 'database/migrations']);
+
+    $blueprint = Blueprint::create([
+        'table_name' => 'products',
+        'model_name' => 'Product',
+        'primary_key_type' => 'id',
+        'columns' => [['name' => 'name', 'type' => 'string']],
+        'soft_deletes' => false,
+    ]);
+
+    app(BlueprintDeletionService::class)->deleteSnapshotOnly($blueprint);
+
+    expect(Blueprint::find($blueprint->id))->toBeNull()
+        ->and(Schema::hasTable('products'))->toBeTrue()
+        ->and(File::exists($modelPath))->toBeTrue()
+        ->and(File::exists($migrationPath))->toBeTrue();
 });

@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Lartisan\Architect\Enums\GenerationMode;
 use Lartisan\Architect\ValueObjects\BlueprintData;
+use Lartisan\Architect\ValueObjects\BlueprintRevisionSnapshot;
 
 class Blueprint extends Model
 {
@@ -30,13 +31,18 @@ class Blueprint extends Model
         return $this->hasOne(BlueprintRevision::class, 'blueprint_id')->latestOfMany('revision');
     }
 
-    public function recordRevision(BlueprintData $blueprintData): BlueprintRevision
+    /**
+     * @param  array<string, mixed>  $meta
+     */
+    public function recordRevision(BlueprintData $blueprintData, array $meta = []): BlueprintRevision
     {
         $nextRevision = ((int) $this->revisions()->max('revision')) + 1;
 
         return $this->revisions()->create([
             'revision' => $nextRevision,
+            'snapshot_version' => BlueprintRevisionSnapshot::CURRENT_VERSION,
             'snapshot' => $blueprintData->toFormData(),
+            'meta' => $meta,
         ]);
     }
 

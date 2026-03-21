@@ -13,7 +13,7 @@ return [
     | Environment Variable: ARCHITECT_SHOW
     |
     */
-    'show' => env('ARCHITECT_SHOW', false),
+    'show' => env('ARCHITECT_SHOW', ! app()->isProduction()),
 
     /*
     |--------------------------------------------------------------------------

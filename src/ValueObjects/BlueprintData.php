@@ -5,6 +5,7 @@ namespace Lartisan\Architect\ValueObjects;
 use Illuminate\Support\Str;
 use Lartisan\Architect\Enums\GenerationMode;
 use Lartisan\Architect\Exceptions\InvalidBlueprintException;
+use Lartisan\Architect\Support\RelationshipModelResolver;
 
 readonly class BlueprintData
 {
@@ -147,9 +148,9 @@ readonly class BlueprintData
         $nameLower = strtolower($column->name);
         $suffixes = ['_id', '_uuid', '_ulid'];
 
-        if ($column->type === 'foreignId' || Str::endsWith($nameLower, $suffixes)) {
-            $baseName = str_replace($suffixes, '', $nameLower);
-            $modelName = Str::studly($baseName);
+        if (in_array($column->type, ['foreignId', 'foreignUuid', 'foreignUlid'], true) || Str::endsWith($nameLower, $suffixes)) {
+            $relationshipName = $this->extractRelationshipName($nameLower);
+            $modelName = app(RelationshipModelResolver::class)->resolveModelName($column, $relationshipName ?: null);
             $modelNamespace = (string) config('architect.models_namespace', config('architect.namespace', 'App\\Models'));
 
             return "\\{$modelNamespace}\\{$modelName}::factory()";
@@ -181,6 +182,17 @@ readonly class BlueprintData
 
             default => '$this->faker->word()',
         };
+    }
+
+    private function extractRelationshipName(string $columnName): ?string
+    {
+        foreach (['_id', '_uuid', '_ulid'] as $suffix) {
+            if (Str::endsWith($columnName, $suffix)) {
+                return Str::camel(Str::beforeLast($columnName, $suffix));
+            }
+        }
+
+        return null;
     }
 
     private function validate(): void

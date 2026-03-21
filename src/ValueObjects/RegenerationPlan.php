@@ -44,6 +44,12 @@ readonly class RegenerationPlan
         return collect($this->schemaOperations)->contains(fn (PlannedSchemaOperation $operation) => $this->isBlockingOperation($operation));
     }
 
+    public function hasSchemaChanges(): bool
+    {
+        return collect($this->schemaOperations)
+            ->contains(fn (PlannedSchemaOperation $operation) => $operation->action !== 'noop');
+    }
+
     public function getBlockingSchemaChanges(): array
     {
         return array_values(array_filter(

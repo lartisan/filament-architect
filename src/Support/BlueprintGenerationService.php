@@ -70,7 +70,11 @@ class BlueprintGenerationService
             FilamentResourceGenerator::make()->generate($blueprintData);
         }
 
-        $storedBlueprint->recordRevision($blueprintData);
+        $storedBlueprint->recordRevision($blueprintData, [
+            'source' => 'architect',
+            'generated_at' => now()->toIso8601String(),
+            'generation_mode' => $blueprintData->generationMode->value,
+        ]);
 
         $shouldRunMigration = $blueprintData->runMigration
             && (! $plan->hasDeferredRiskySchemaChanges() || ($blueprintData->generationMode->shouldReplaceExistingArtifacts() && $blueprintData->overwriteTable));
@@ -78,6 +82,13 @@ class BlueprintGenerationService
         if ($shouldRunMigration) {
             Artisan::call('migrate', ['--force' => true]);
         }
+
+        app(BlueprintGenerationHookRegistry::class)->runAfterGenerate(
+            $storedBlueprint->fresh(['latestRevision']) ?? $storedBlueprint,
+            $blueprintData,
+            $plan,
+            $shouldRunMigration,
+        );
 
         return [
             'plan' => $plan,

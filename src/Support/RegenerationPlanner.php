@@ -161,9 +161,9 @@ class RegenerationPlanner
 
             $changes = [];
             $currentType = $this->normalizeSchemaType($current['type_name'] ?? null);
-            $desiredType = $this->normalizeSchemaType($column->type);
+            $desiredType = $column->type;
 
-            if ($currentType !== $desiredType) {
+            if (! $this->schemaTypeMatchesBlueprintType($current['type_name'] ?? null, $column->type)) {
                 $changes[] = "type {$currentType} → {$desiredType}";
             }
 
@@ -277,13 +277,13 @@ class RegenerationPlanner
             'varchar', 'character varying' => 'string',
             'text', 'longtext' => 'text',
             'int', 'integer', 'mediumint', 'smallint', 'tinyint' => 'integer',
-            'bigint', 'unsignedbigint' => 'unsignedBigInteger',
+            'foreignid', 'bigint', 'unsignedbigint' => 'unsignedBigInteger',
             'bool', 'boolean' => 'boolean',
             'json', 'jsonb' => 'json',
             'date' => 'date',
             'datetime', 'timestamp' => 'dateTime',
-            'uuid' => 'uuid',
-            'ulid' => 'ulid',
+            'foreignuuid', 'uuid' => 'uuid',
+            'foreignulid', 'ulid' => 'ulid',
             default => strtolower((string) $type),
         };
     }
@@ -325,6 +325,28 @@ class RegenerationPlanner
         }
 
         return $normalized;
+    }
+
+    private function schemaTypeMatchesBlueprintType(?string $schemaType, string $blueprintType): bool
+    {
+        return in_array(
+            $this->normalizeSchemaType($schemaType),
+            $this->equivalentSchemaTypesForBlueprintType($blueprintType),
+            true,
+        );
+    }
+
+    /**
+     * @return array<string>
+     */
+    private function equivalentSchemaTypesForBlueprintType(string $blueprintType): array
+    {
+        return match (strtolower($blueprintType)) {
+            'foreignid' => ['integer', 'unsignedBigInteger'],
+            'foreignuuid', 'uuid' => ['uuid'],
+            'foreignulid', 'ulid' => ['ulid'],
+            default => [$this->normalizeSchemaType($blueprintType)],
+        };
     }
 
     private function findRemovedColumns($currentColumns, $desiredColumns, bool $softDeletes): array
@@ -371,7 +393,7 @@ class RegenerationPlanner
             return [];
         }
 
-        if ($this->normalizeSchemaType($removedColumn['type_name'] ?? null) !== $this->normalizeSchemaType($addedColumn->type)) {
+        if (! $this->schemaTypeMatchesBlueprintType($removedColumn['type_name'] ?? null, $addedColumn->type)) {
             return [];
         }
 
