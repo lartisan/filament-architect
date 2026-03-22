@@ -2,15 +2,24 @@
 
 use Illuminate\Support\Facades\File;
 use Lartisan\Architect\Generators\ModelGenerator;
+use Lartisan\Architect\Support\GenerationPathResolver;
 use Lartisan\Architect\Tests\TestCase;
 use Lartisan\Architect\ValueObjects\BlueprintData;
 
 uses(TestCase::class);
 
+beforeEach(function () {
+    config()->set('architect.models_namespace', modelRegenerationTestModelsNamespace());
+});
+
 afterEach(function () {
-    File::delete(app_path('Models/Project.php'));
-    File::delete(app_path('Models/Post.php'));
+    File::delete(GenerationPathResolver::model('Project'));
+    File::delete(GenerationPathResolver::model('Post'));
     File::delete(app_path('Domain/Catalog/Models/Product.php'));
+
+    if (File::isDirectory(modelRegenerationTestModelsRoot())) {
+        File::deleteDirectory(modelRegenerationTestModelsRoot());
+    }
 
     if (File::isDirectory(app_path('Domain'))) {
         File::deleteDirectory(app_path('Domain'));
@@ -18,12 +27,12 @@ afterEach(function () {
 });
 
 it('merges generated model parts without removing custom code', function () {
-    $path = app_path('Models/Project.php');
+    $path = GenerationPathResolver::model('Project');
     File::ensureDirectoryExists(dirname($path));
     File::put($path, <<<'PHP'
 <?php
 
-namespace App\Models;
+namespace App\Testing\ModelRegeneration\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -75,12 +84,12 @@ PHP);
 });
 
 it('keeps an existing relationship method intact during merge regeneration', function () {
-    $path = app_path('Models/Post.php');
+    $path = GenerationPathResolver::model('Post');
     File::ensureDirectoryExists(dirname($path));
     File::put($path, <<<'PHP'
 <?php
 
-namespace App\Models;
+namespace App\Testing\ModelRegeneration\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -120,12 +129,12 @@ PHP);
 });
 
 it('uses the selected related table model for newly merged relationship methods', function () {
-    $path = app_path('Models/Post.php');
+    $path = GenerationPathResolver::model('Post');
     File::ensureDirectoryExists(dirname($path));
     File::put($path, <<<'PHP'
 <?php
 
-namespace App\Models;
+namespace App\Testing\ModelRegeneration\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -176,3 +185,14 @@ it('writes models to the configured models namespace path', function () {
         ->and(File::exists($path))->toBeTrue()
         ->and(File::get($path))->toContain('namespace App\\Domain\\Catalog\\Models;');
 });
+
+function modelRegenerationTestModelsNamespace(): string
+{
+    return 'App\\Testing\\ModelRegeneration\\Models';
+}
+
+function modelRegenerationTestModelsRoot(): string
+{
+    return dirname(GenerationPathResolver::model('Project'));
+}
+

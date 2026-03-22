@@ -48,20 +48,30 @@ class Blueprint extends Model
 
     public function toFormData(): array
     {
-        return [
-            'table_name' => $this->table_name,
-            'model_name' => $this->model_name,
-            'primary_key_type' => $this->primary_key_type,
-            'columns' => $this->columns,
-            'soft_deletes' => (bool) $this->soft_deletes,
+        $meta = array_merge($this->meta ?? [], [
             'gen_factory' => $this->meta['gen_factory'] ?? true,
             'gen_seeder' => $this->meta['gen_seeder'] ?? true,
             'gen_resource' => $this->meta['gen_resource'] ?? true,
             'generation_mode' => $this->meta['generation_mode'] ?? GenerationMode::default()->value,
             'allow_destructive_changes' => (bool) ($this->meta['allow_destructive_changes'] ?? false),
             'allow_likely_renames' => (bool) ($this->meta['allow_likely_renames'] ?? false),
+        ]);
+
+        return [
+            'table_name' => $this->table_name,
+            'model_name' => $this->model_name,
+            'primary_key_type' => $this->primary_key_type,
+            'columns' => $this->columns,
+            'soft_deletes' => (bool) $this->soft_deletes,
+            'gen_factory' => $meta['gen_factory'],
+            'gen_seeder' => $meta['gen_seeder'],
+            'gen_resource' => $meta['gen_resource'],
+            'generation_mode' => $meta['generation_mode'],
+            'allow_destructive_changes' => $meta['allow_destructive_changes'],
+            'allow_likely_renames' => $meta['allow_likely_renames'],
             'run_migration' => false,
             'overwrite_table' => false,
+            'meta' => $meta,
         ];
     }
 }

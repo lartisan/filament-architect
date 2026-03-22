@@ -188,7 +188,7 @@ class ArchitectWizardTest extends TestCase
         $migrationPath = app(MigrationGenerator::class)->generate(BlueprintData::fromArray($blueprintData));
         $modelPath = app(ModelGenerator::class)->generate(BlueprintData::fromArray($blueprintData));
 
-        Artisan::call('migrate', ['--path' => 'database/migrations']);
+        migrateArchitectWizardTestMigration($migrationPath);
 
         $blueprint = Blueprint::create([
             'table_name' => 'tags',
@@ -315,3 +315,12 @@ class ArchitectWizardTest extends TestCase
         $this->assertFileDoesNotExist(GenerationPathResolver::resource('CommentResource'));
     }
 }
+
+function migrateArchitectWizardTestMigration(string $path): void
+{
+    Artisan::call('migrate', [
+        '--path' => $path,
+        '--realpath' => true,
+    ]);
+}
+

@@ -6,11 +6,26 @@ use Filament\Schemas\Components\Wizard as WizardComponent;
 use Filament\Schemas\Components\Wizard\Step as WizardStep;
 use Lartisan\Architect\Actions\ArchitectAction;
 use Lartisan\Architect\Livewire\ArchitectWizard;
+use Lartisan\Architect\Models\Blueprint as ArchitectBlueprint;
+use Lartisan\Architect\Support\ArchitectUiExtensionRegistry;
 use Lartisan\Architect\Tests\TestCase;
+use Lartisan\Architect\ValueObjects\BlueprintData;
 
 uses(TestCase::class);
 
-it('uses explicit tab keys for first-tab activation', function () {
+beforeEach(function () {
+    app(ArchitectUiExtensionRegistry::class)->flush();
+});
+
+afterEach(function () {
+    app(ArchitectUiExtensionRegistry::class)->flush();
+
+    
+    \Illuminate\Support\Facades\DB::table('architect_blueprint_revisions')->delete();
+    \Illuminate\Support\Facades\DB::table('architect_blueprints')->delete();
+});
+
+it('keeps only the create edit tab visible when there are no blueprint revisions', function () {
     $livewire = app(ArchitectWizard::class);
     $action = ArchitectAction::make();
     $schema = $action->getSchema(Schema::make($livewire));
@@ -27,11 +42,13 @@ it('uses explicit tab keys for first-tab activation', function () {
     $tabComponents = array_values($tabs->getChildSchema()->getComponents());
 
     expect($tabComponents[0]->getKey(isAbsolute: false))->toBe('architect-create-edit-tab')
-        ->and($tabComponents[1]->getKey(isAbsolute: false))->toBe('architect-existing-resources-tab')
+        ->and($tabComponents)->toHaveCount(1)
         ->and($tabs->getExtraAttributes()['x-on:activate-first-tab.window'] ?? null)->toBe("\$data.tab = 'architect-create-edit-tab';");
 });
 
-it('keeps the review step limited to generated file previews', function () {
+it('shows blueprints first when blueprint revisions exist', function () {
+    createBlueprintRevisionFixture();
+
     $livewire = app(ArchitectWizard::class);
     $action = ArchitectAction::make();
     $schema = $action->getSchema(Schema::make($livewire));
@@ -43,7 +60,34 @@ it('keeps the review step limited to generated file previews', function () {
 
     /** @var TabsComponent $tabs */
 
-    $createEditTab = array_values($tabs->getChildSchema()->getComponents())[0];
+    $tabComponents = array_values($tabs->getChildSchema()->getComponents());
+
+    expect($tabComponents[0]->getKey(isAbsolute: false))->toBe('architect-existing-resources-tab')
+        ->and($tabComponents[1]->getKey(isAbsolute: false))->toBe('architect-create-edit-tab')
+        ->and($tabs->getExtraAttributes()['x-on:activate-first-tab.window'] ?? null)->toBe("\$data.tab = 'architect-create-edit-tab';");
+});
+
+it('keeps the review step limited to generated file previews', function () {
+    createBlueprintRevisionFixture();
+
+    $livewire = app(ArchitectWizard::class);
+    $action = ArchitectAction::make();
+    $schema = $action->getSchema(Schema::make($livewire));
+
+    $tabs = collect($schema->getComponents())
+        ->first(fn ($component) => $component instanceof TabsComponent);
+
+    expect($tabs)->toBeInstanceOf(TabsComponent::class);
+
+    /** @var TabsComponent $tabs */
+
+    $createEditTab = collect($tabs->getChildSchema()->getComponents())
+        ->first(fn ($component) => $component->getKey(isAbsolute: false) === 'architect-create-edit-tab');
+
+    expect($createEditTab)->not->toBeNull();
+
+    /** @var object $createEditTab */
+
     $wizard = collect($createEditTab->getChildSchema()->getComponents())
         ->first(fn ($component) => $component instanceof WizardComponent);
 
@@ -94,5 +138,35 @@ function flattenSchemaComponents(object $component): array
     }
 
     return $components;
+}
+
+function createBlueprintRevisionFixture(): void
+{
+    $blueprint = ArchitectBlueprint::create([
+        'table_name' => 'architect_action_tabs_projects',
+        'model_name' => 'ArchitectActionTabsProject',
+        'primary_key_type' => 'id',
+        'columns' => [
+            ['name' => 'title', 'type' => 'string'],
+        ],
+        'soft_deletes' => false,
+        'meta' => [
+            'gen_factory' => true,
+            'gen_seeder' => true,
+            'gen_resource' => true,
+            'generation_mode' => 'merge',
+            'allow_destructive_changes' => false,
+            'allow_likely_renames' => false,
+        ],
+    ]);
+
+    $blueprint->recordRevision(BlueprintData::fromArray([
+        'table_name' => 'architect_action_tabs_projects',
+        'model_name' => 'ArchitectActionTabsProject',
+        'generation_mode' => 'merge',
+        'columns' => [
+            ['name' => 'title', 'type' => 'string'],
+        ],
+    ]));
 }
 

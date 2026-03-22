@@ -8,8 +8,17 @@ use Lartisan\Architect\ValueObjects\BlueprintData;
 
 uses(TestCase::class);
 
+beforeEach(function () {
+    config()->set('architect.models_namespace', seederGeneratorTestModelsNamespace());
+    config()->set('architect.seeders_namespace', seederGeneratorTestSeedersNamespace());
+});
+
 afterEach(function () {
     File::delete(GenerationPathResolver::seeder('ProjectSeeder'));
+
+    if (File::isDirectory(seederGeneratorTestSeedersRoot())) {
+        File::deleteDirectory(seederGeneratorTestSeedersRoot());
+    }
 });
 
 it('generates a seeder file', function () {
@@ -56,9 +65,9 @@ it('merges the managed seeder region without removing custom logic', function ()
     File::put($path, <<<'PHP'
 <?php
 
-namespace Database\Seeders;
+namespace Database\Testing\SeederGenerator\Seeders;
 
-use App\Models\Project;
+use App\Testing\SeederGenerator\Models\Project;
 use Illuminate\Database\Seeder;
 
 class ProjectSeeder extends Seeder
@@ -93,3 +102,19 @@ PHP);
         ->and($content)->toContain('Project::factory()->count(10)->create();')
         ->and($content)->toContain("logger('done');");
 });
+
+function seederGeneratorTestModelsNamespace(): string
+{
+    return 'App\\Testing\\SeederGenerator\\Models';
+}
+
+function seederGeneratorTestSeedersNamespace(): string
+{
+    return 'Database\\Testing\\SeederGenerator\\Seeders';
+}
+
+function seederGeneratorTestSeedersRoot(): string
+{
+    return dirname(GenerationPathResolver::seeder('ProjectSeeder'));
+}
+

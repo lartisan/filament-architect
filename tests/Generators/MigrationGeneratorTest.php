@@ -12,25 +12,35 @@ use Lartisan\Architect\ValueObjects\BlueprintData;
 uses(TestCase::class);
 
 afterEach(function () {
-    foreach (File::glob(database_path('migrations/*_projects_table.php')) as $migration) {
-        File::delete($migration);
+    foreach ([
+        database_path('migrations/*_migration_projects_table.php'),
+        database_path('migrations/*_to_migration_projects.php'),
+        database_path('migrations/*_on_migration_projects.php'),
+    ] as $pattern) {
+        foreach (File::glob($pattern) as $migration) {
+            File::delete($migration);
+        }
     }
 
     DB::table('migrations')
-        ->where('migration', 'like', '%_projects_table')
+        ->where(function ($query) {
+            $query->where('migration', 'like', '%_migration_projects_table')
+                ->orWhere('migration', 'like', '%_to_migration_projects')
+                ->orWhere('migration', 'like', '%_on_migration_projects');
+        })
         ->delete();
 
     DB::table('architect_blueprint_revisions')->delete();
     DB::table('architect_blueprints')->delete();
 
-    if (Schema::hasTable('projects')) {
-        Schema::drop('projects');
+    if (Schema::hasTable('migration_projects')) {
+        Schema::drop('migration_projects');
     }
 });
 
 it('generates a migration file with correct content', function () {
     $blueprint = BlueprintData::fromArray([
-        'table_name' => 'projects',
+        'table_name' => 'migration_projects',
         'columns' => [
             ['name' => 'title', 'type' => 'string'],
             ['name' => 'description', 'type' => 'text', 'is_nullable' => true],
@@ -46,7 +56,7 @@ it('generates a migration file with correct content', function () {
     $content = File::get($path);
 
     expect($content)
-        ->toContain("Schema::create('projects', function (Blueprint \$table) {")
+        ->toContain("Schema::create('migration_projects', function (Blueprint \$table) {")
         ->toContain("\$table->string('title');")
         ->toContain("\$table->text('description')->nullable();")
         ->toContain('$table->softDeletes();')
@@ -58,7 +68,7 @@ it('generates a migration file with correct content', function () {
 
 it('handles overwrite table logic', function () {
     $blueprint = BlueprintData::fromArray([
-        'table_name' => 'projects',
+        'table_name' => 'migration_projects',
         'overwrite_table' => true,
         'columns' => [['name' => 'title', 'type' => 'string']],
     ]);
@@ -69,7 +79,7 @@ it('handles overwrite table logic', function () {
     $content = File::get($path);
 
     expect($content)
-        ->toContain("Schema::dropIfExists('projects');");
+        ->toContain("Schema::dropIfExists('migration_projects');");
 
     File::delete($path);
 });
@@ -78,7 +88,7 @@ it('updates an existing pending create migration in place during merge mode', fu
     $generator = new MigrationGenerator;
 
     $initialBlueprint = BlueprintData::fromArray([
-        'table_name' => 'projects',
+        'table_name' => 'migration_projects',
         'columns' => [
             ['name' => 'title', 'type' => 'string'],
         ],
@@ -87,7 +97,7 @@ it('updates an existing pending create migration in place during merge mode', fu
     $path = $generator->generate($initialBlueprint);
 
     $updatedBlueprint = BlueprintData::fromArray([
-        'table_name' => 'projects',
+        'table_name' => 'migration_projects',
         'generation_mode' => 'merge',
         'columns' => [
             ['name' => 'title', 'type' => 'string'],
@@ -100,24 +110,24 @@ it('updates an existing pending create migration in place during merge mode', fu
 
     expect($updatedPath)->toBe($path)
         ->and($content)->toContain("\$table->text('summary');")
-        ->and(substr_count($content, "Schema::create('projects'"))->toBe(1);
+        ->and(substr_count($content, "Schema::create('migration_projects'"))->toBe(1);
 });
 
 it('creates a sync migration for missing columns on an existing table', function () {
     $generator = new MigrationGenerator;
 
     $initialBlueprint = BlueprintData::fromArray([
-        'table_name' => 'projects',
+        'table_name' => 'migration_projects',
         'columns' => [
             ['name' => 'title', 'type' => 'string'],
         ],
     ]);
 
     $createPath = $generator->generate($initialBlueprint);
-    Artisan::call('migrate', ['--path' => 'database/migrations']);
+    migrateMigrationGeneratorTestMigration($createPath);
 
     $updatedBlueprint = BlueprintData::fromArray([
-        'table_name' => 'projects',
+        'table_name' => 'migration_projects',
         'generation_mode' => 'merge',
         'soft_deletes' => true,
         'columns' => [
@@ -130,8 +140,9 @@ it('creates a sync migration for missing columns on an existing table', function
     $content = File::get($syncPath);
 
     expect($syncPath)->not->toBe($createPath)
-        ->and(basename($syncPath))->toContain('_sync_projects_table.php')
-        ->and($content)->toContain("Schema::table('projects'")
+        ->and(basename($syncPath))->toContain('_update_migration_projects_table.php')
+        ->and(basename($syncPath))->not->toContain('_sync_')
+        ->and($content)->toContain("Schema::table('migration_projects'")
         ->and($content)->toContain("\$table->text('summary');")
         ->and($content)->toContain('$table->softDeletes();');
 
@@ -142,17 +153,17 @@ it('creates a sync migration for nullable default and index changes', function (
     $generator = new MigrationGenerator;
 
     $initialBlueprint = BlueprintData::fromArray([
-        'table_name' => 'projects',
+        'table_name' => 'migration_projects',
         'columns' => [
             ['name' => 'title', 'type' => 'string'],
         ],
     ]);
 
-    $generator->generate($initialBlueprint);
-    Artisan::call('migrate', ['--path' => 'database/migrations']);
+    $initialPath = $generator->generate($initialBlueprint);
+    migrateMigrationGeneratorTestMigration($initialPath);
 
     $updatedBlueprint = BlueprintData::fromArray([
-        'table_name' => 'projects',
+        'table_name' => 'migration_projects',
         'generation_mode' => 'merge',
         'columns' => [
             ['name' => 'title', 'type' => 'string', 'is_nullable' => true, 'default' => 'draft', 'is_index' => true],
@@ -162,7 +173,8 @@ it('creates a sync migration for nullable default and index changes', function (
     $syncPath = $generator->generate($updatedBlueprint);
     $content = File::get($syncPath);
 
-    expect($content)
+    expect(basename($syncPath))->toContain('_update_column_title_on_migration_projects.php')
+        ->and($content)
         ->toContain("\$table->string('title')->nullable()->default('draft')->change();")
         ->toContain("\$table->index('title');")
         ->toContain("\$table->dropIndex(['title']);");
@@ -171,7 +183,7 @@ it('creates a sync migration for nullable default and index changes', function (
 });
 
 it('creates a sync migration with a confirmed likely rename', function () {
-    Schema::create('projects', function ($table) {
+    Schema::create('migration_projects', function ($table) {
         $table->id();
         $table->string('legacy_name');
         $table->timestamps();
@@ -180,7 +192,7 @@ it('creates a sync migration with a confirmed likely rename', function () {
     $generator = new MigrationGenerator;
 
     $blueprint = BlueprintData::fromArray([
-        'table_name' => 'projects',
+        'table_name' => 'migration_projects',
         'generation_mode' => 'merge',
         'allow_likely_renames' => true,
         'columns' => [
@@ -199,7 +211,7 @@ it('creates a sync migration with a confirmed likely rename', function () {
 });
 
 it('creates a sync migration with confirmed destructive column removals', function () {
-    Schema::create('projects', function ($table) {
+    Schema::create('migration_projects', function ($table) {
         $table->id();
         $table->string('title');
         $table->string('legacy');
@@ -209,7 +221,7 @@ it('creates a sync migration with confirmed destructive column removals', functi
     $generator = new MigrationGenerator;
 
     $blueprint = BlueprintData::fromArray([
-        'table_name' => 'projects',
+        'table_name' => 'migration_projects',
         'generation_mode' => 'merge',
         'allow_destructive_changes' => true,
         'columns' => [
@@ -228,7 +240,7 @@ it('creates a sync migration with confirmed destructive column removals', functi
 });
 
 it('previews an additive sync migration for new columns on an existing table', function () {
-    Schema::create('projects', function ($table) {
+    Schema::create('migration_projects', function ($table) {
         $table->id();
         $table->string('title');
         $table->timestamps();
@@ -237,7 +249,7 @@ it('previews an additive sync migration for new columns on an existing table', f
     $generator = new MigrationGenerator;
 
     $preview = $generator->preview(BlueprintData::fromArray([
-        'table_name' => 'projects',
+        'table_name' => 'migration_projects',
         'generation_mode' => 'merge',
         'columns' => [
             ['name' => 'title', 'type' => 'string'],
@@ -246,14 +258,14 @@ it('previews an additive sync migration for new columns on an existing table', f
     ]));
 
     expect($preview)
-        ->toContain("Schema::table('projects', function (Blueprint \$table) {")
+        ->toContain("Schema::table('migration_projects', function (Blueprint \$table) {")
         ->toContain("\$table->text('summary')->after('title');")
         ->toContain("\$table->dropColumn('summary');")
-        ->not->toContain("Schema::create('projects'");
+        ->not->toContain("Schema::create('migration_projects'");
 });
 
 it('falls back to the default preview for non-additive existing table changes', function () {
-    Schema::create('projects', function ($table) {
+    Schema::create('migration_projects', function ($table) {
         $table->id();
         $table->string('title');
         $table->timestamps();
@@ -262,7 +274,7 @@ it('falls back to the default preview for non-additive existing table changes', 
     $generator = new MigrationGenerator;
 
     $preview = $generator->preview(BlueprintData::fromArray([
-        'table_name' => 'projects',
+        'table_name' => 'migration_projects',
         'generation_mode' => 'merge',
         'columns' => [
             ['name' => 'title', 'type' => 'string', 'is_nullable' => true],
@@ -270,12 +282,12 @@ it('falls back to the default preview for non-additive existing table changes', 
     ]));
 
     expect($preview)
-        ->toContain("Schema::create('projects', function (Blueprint \$table) {")
-        ->not->toContain("Schema::table('projects', function (Blueprint \$table) {");
+        ->toContain("Schema::create('migration_projects', function (Blueprint \$table) {")
+        ->not->toContain("Schema::table('migration_projects', function (Blueprint \$table) {");
 });
 
 it('previews an additive sync migration for string keyed new columns on an existing table', function () {
-    Schema::create('projects', function ($table) {
+    Schema::create('migration_projects', function ($table) {
         $table->id();
         $table->string('title');
         $table->timestamps();
@@ -284,7 +296,7 @@ it('previews an additive sync migration for string keyed new columns on an exist
     $generator = new MigrationGenerator;
 
     $preview = $generator->preview(BlueprintData::fromArray([
-        'table_name' => 'projects',
+        'table_name' => 'migration_projects',
         'generation_mode' => 'merge',
         'columns' => [
             'existing-title' => ['name' => 'title', 'type' => 'string'],
@@ -293,20 +305,57 @@ it('previews an additive sync migration for string keyed new columns on an exist
     ]));
 
     expect($preview)
-        ->toContain("Schema::table('projects', function (Blueprint \$table) {")
+        ->toContain("Schema::table('migration_projects', function (Blueprint \$table) {")
         ->toContain("\$table->text('summary')->after('title');")
         ->toContain("\$table->dropColumn('summary');");
 });
 
+it('previews a sync migration from an imported legacy baseline before the first architect revision exists', function () {
+    Schema::create('migration_projects', function ($table) {
+        $table->id();
+        $table->string('title');
+        $table->timestamps();
+    });
+
+    $generator = new MigrationGenerator;
+
+    $preview = $generator->preview(BlueprintData::fromArray([
+        'table_name' => 'migration_projects',
+        'model_name' => 'Project',
+        'generation_mode' => 'merge',
+        'columns' => [
+            ['name' => 'title', 'type' => 'text', 'is_nullable' => true],
+        ],
+        'meta' => [
+            'legacy_baseline' => [
+                'table_name' => 'migration_projects',
+                'model_name' => 'Project',
+                'primary_key_type' => 'id',
+                'soft_deletes' => false,
+                'generation_mode' => 'merge',
+                'columns' => [
+                    ['name' => 'title', 'type' => 'string', 'is_nullable' => false, 'is_unique' => false, 'is_index' => false, 'default' => null],
+                ],
+            ],
+        ],
+    ]));
+
+    expect($preview)
+        ->toContain("Schema::table('migration_projects', function (Blueprint \$table) {")
+        ->toContain("\$table->text('title')->nullable()->change();")
+        ->toContain("\$table->string('title')->default(null)->change();")
+        ->not->toContain("Schema::create('migration_projects'");
+});
+
 it('prefers the latest generated blueprint revision when previewing additive updates', function () {
-    Schema::create('projects', function ($table) {
+    Schema::create('migration_projects', function ($table) {
         $table->id();
         $table->string('title');
         $table->timestamps();
     });
 
     $storedBlueprint = ArchitectBlueprint::create([
-        'table_name' => 'projects',
+        'table_name' => 'migration_projects',
         'model_name' => 'Project',
         'primary_key_type' => 'id',
         'columns' => [
@@ -325,7 +374,7 @@ it('prefers the latest generated blueprint revision when previewing additive upd
     ]);
 
     $storedBlueprint->recordRevision(BlueprintData::fromArray([
-        'table_name' => 'projects',
+        'table_name' => 'migration_projects',
         'model_name' => 'Project',
         'generation_mode' => 'merge',
         'columns' => [
@@ -335,7 +384,7 @@ it('prefers the latest generated blueprint revision when previewing additive upd
     ]));
 
     $preview = (new MigrationGenerator)->preview(BlueprintData::fromArray([
-        'table_name' => 'projects',
+        'table_name' => 'migration_projects',
         'model_name' => 'Project',
         'generation_mode' => 'merge',
         'columns' => [
@@ -347,7 +396,7 @@ it('prefers the latest generated blueprint revision when previewing additive upd
     ]));
 
     expect($preview)
-        ->toContain("Schema::table('projects', function (Blueprint \$table) {")
+        ->toContain("Schema::table('migration_projects', function (Blueprint \$table) {")
         ->toContain("\$table->text('content')->after('slug');")
         ->toContain("\$table->boolean('is_published')->after('content');")
         ->toContain("\$table->dropColumn('is_published');")
@@ -358,7 +407,7 @@ it('prefers the latest generated blueprint revision when previewing additive upd
 
 it('uses the latest revision for preview even when the live table is missing', function () {
     $storedBlueprint = ArchitectBlueprint::create([
-        'table_name' => 'projects',
+        'table_name' => 'migration_projects',
         'model_name' => 'Project',
         'primary_key_type' => 'id',
         'columns' => [
@@ -377,7 +426,7 @@ it('uses the latest revision for preview even when the live table is missing', f
     ]);
 
     $storedBlueprint->recordRevision(BlueprintData::fromArray([
-        'table_name' => 'projects',
+        'table_name' => 'migration_projects',
         'model_name' => 'Project',
         'generation_mode' => 'merge',
         'columns' => [
@@ -387,7 +436,7 @@ it('uses the latest revision for preview even when the live table is missing', f
     ]));
 
     $preview = (new MigrationGenerator)->preview(BlueprintData::fromArray([
-        'table_name' => 'projects',
+        'table_name' => 'migration_projects',
         'model_name' => 'Project',
         'generation_mode' => 'merge',
         'columns' => [
@@ -399,22 +448,22 @@ it('uses the latest revision for preview even when the live table is missing', f
     ]));
 
     expect($preview)
-        ->toContain("Schema::table('projects', function (Blueprint \$table) {")
+        ->toContain("Schema::table('migration_projects', function (Blueprint \$table) {")
         ->toContain("\$table->text('excerpt')->after('slug');")
         ->toContain("\$table->string('status')->after('excerpt');")
-        ->not->toContain("Schema::create('projects'")
+        ->not->toContain("Schema::create('migration_projects'")
         ->not->toContain("\$table->string('slug')->unique()");
 });
 
 it('generates a sync migration from the latest revision diff instead of stale database state', function () {
-    Schema::create('projects', function ($table) {
+    Schema::create('migration_projects', function ($table) {
         $table->id();
         $table->string('title');
         $table->timestamps();
     });
 
     $storedBlueprint = ArchitectBlueprint::create([
-        'table_name' => 'projects',
+        'table_name' => 'migration_projects',
         'model_name' => 'Project',
         'primary_key_type' => 'id',
         'columns' => [
@@ -434,7 +483,7 @@ it('generates a sync migration from the latest revision diff instead of stale da
     ]);
 
     $storedBlueprint->recordRevision(BlueprintData::fromArray([
-        'table_name' => 'projects',
+        'table_name' => 'migration_projects',
         'model_name' => 'Project',
         'generation_mode' => 'merge',
         'columns' => [
@@ -445,7 +494,7 @@ it('generates a sync migration from the latest revision diff instead of stale da
     ]));
 
     $syncPath = (new MigrationGenerator)->generate(BlueprintData::fromArray([
-        'table_name' => 'projects',
+        'table_name' => 'migration_projects',
         'model_name' => 'Project',
         'generation_mode' => 'merge',
         'columns' => [
@@ -459,7 +508,8 @@ it('generates a sync migration from the latest revision diff instead of stale da
 
     $content = File::get($syncPath);
 
-    expect($content)
+    expect(basename($syncPath))->toContain('_add_columns_user_id_published_at_to_migration_projects.php')
+        ->and($content)
         ->toContain("\$table->foreignId('user_id')")
         ->toContain("\$table->dateTime('published_at')->nullable()")
         ->not->toContain("\$table->text('excerpt')")
@@ -471,14 +521,14 @@ it('generates a sync migration from the latest revision diff instead of stale da
 });
 
 it('does not duplicate unique indexes when generating a sync migration for a new unique column', function () {
-    Schema::create('projects', function ($table) {
+    Schema::create('migration_projects', function ($table) {
         $table->id();
         $table->string('title');
         $table->timestamps();
     });
 
     $syncPath = (new MigrationGenerator)->generate(BlueprintData::fromArray([
-        'table_name' => 'projects',
+        'table_name' => 'migration_projects',
         'model_name' => 'Project',
         'generation_mode' => 'merge',
         'columns' => [
@@ -498,7 +548,7 @@ it('does not duplicate unique indexes when generating a sync migration for a new
 
 it('does not duplicate unique indexes when previewing a new unique column from the latest revision diff', function () {
     $storedBlueprint = ArchitectBlueprint::create([
-        'table_name' => 'projects',
+        'table_name' => 'migration_projects',
         'model_name' => 'Project',
         'primary_key_type' => 'id',
         'columns' => [
@@ -516,7 +566,7 @@ it('does not duplicate unique indexes when previewing a new unique column from t
     ]);
 
     $storedBlueprint->recordRevision(BlueprintData::fromArray([
-        'table_name' => 'projects',
+        'table_name' => 'migration_projects',
         'model_name' => 'Project',
         'generation_mode' => 'merge',
         'columns' => [
@@ -525,7 +575,7 @@ it('does not duplicate unique indexes when previewing a new unique column from t
     ]));
 
     $preview = (new MigrationGenerator)->preview(BlueprintData::fromArray([
-        'table_name' => 'projects',
+        'table_name' => 'migration_projects',
         'model_name' => 'Project',
         'generation_mode' => 'merge',
         'columns' => [
@@ -539,3 +589,10 @@ it('does not duplicate unique indexes when previewing a new unique column from t
         ->and($preview)->not->toContain("\$table->unique('slug');");
 });
 
+function migrateMigrationGeneratorTestMigration(string $path): void
+{
+    Artisan::call('migrate', [
+        '--path' => $path,
+        '--realpath' => true,
+    ]);
+}

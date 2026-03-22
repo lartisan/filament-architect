@@ -5,6 +5,7 @@ namespace Lartisan\Architect\Generators;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Lartisan\Architect\Enums\GenerationMode;
 use Lartisan\Architect\Models\Blueprint as ArchitectBlueprint;
 use Lartisan\Architect\ValueObjects\BlueprintData;
@@ -46,16 +47,16 @@ readonly class MigrationGenerator extends AbstractGenerator
                 return '';
             }
 
-            $syncContent = $this->getSyncContent($blueprint);
+            $syncPayload = $this->getSyncPayload($blueprint);
 
-            if ($syncContent === null) {
+            if ($syncPayload === null) {
                 return '';
             }
 
-            $filename = date('Y_m_d_His')."_sync_{$blueprint->tableName}_table.php";
+            $filename = $this->buildSyncMigrationFilename($blueprint->tableName, $syncPayload['upLines']);
             $path = database_path("migrations/{$filename}");
             $this->ensureDirectoryExists($path);
-            $this->writeFormattedFile($path, $syncContent);
+            $this->writeFormattedFile($path, $syncPayload['content']);
 
             return $path;
         }
@@ -92,7 +93,7 @@ readonly class MigrationGenerator extends AbstractGenerator
 
     private function getRevisionPreviewContent(BlueprintData $blueprint): ?string
     {
-        $baselineBlueprint = $this->findPreviewBaselineRevision($blueprint);
+        $baselineBlueprint = $this->findPreviewBaselineBlueprint($blueprint);
 
         if (! $baselineBlueprint instanceof BlueprintData) {
             return null;
@@ -292,9 +293,9 @@ readonly class MigrationGenerator extends AbstractGenerator
             ->exists();
     }
 
-    private function getSyncContent(BlueprintData $blueprint): ?string
+    private function getSyncPayload(BlueprintData $blueprint): ?array
     {
-        $baselineBlueprint = $this->findPreviewBaselineRevision($blueprint);
+        $baselineBlueprint = $this->findPreviewBaselineBlueprint($blueprint);
 
         [$upLines, $downLines] = $baselineBlueprint instanceof BlueprintData
             ? $this->buildPreviewOperationsFromBlueprints($baselineBlueprint, $blueprint)
@@ -304,7 +305,10 @@ readonly class MigrationGenerator extends AbstractGenerator
             return null;
         }
 
-        return $this->buildSyncStubContent($blueprint->tableName, $upLines, $downLines);
+        return [
+            'content' => $this->buildSyncStubContent($blueprint->tableName, $upLines, $downLines),
+            'upLines' => $upLines,
+        ];
     }
 
     private function getAdditivePreviewContent(BlueprintData $blueprint): ?string
@@ -313,7 +317,7 @@ readonly class MigrationGenerator extends AbstractGenerator
             return null;
         }
 
-        $baselineBlueprint = $this->findPreviewBaselineRevision($blueprint);
+        $baselineBlueprint = $this->findPreviewBaselineBlueprint($blueprint);
         [$upLines, $downLines] = $baselineBlueprint instanceof BlueprintData
             ? $this->buildAdditivePreviewOperationsFromBlueprint($blueprint, $baselineBlueprint)
             : $this->buildAdditivePreviewOperationsFromSchema($blueprint);
@@ -325,14 +329,24 @@ readonly class MigrationGenerator extends AbstractGenerator
         return $this->buildSyncStubContent($blueprint->tableName, $upLines, $downLines);
     }
 
-    private function findPreviewBaselineRevision(BlueprintData $blueprint): ?BlueprintData
+    private function findPreviewBaselineBlueprint(BlueprintData $blueprint): ?BlueprintData
     {
         $storedBlueprint = ArchitectBlueprint::query()
             ->where('table_name', $blueprint->tableName)
             ->with('latestRevision')
             ->first();
 
-        return $storedBlueprint?->latestRevision?->toBlueprintData();
+        if ($storedBlueprint?->latestRevision instanceof \Lartisan\Architect\Models\BlueprintRevision) {
+            return $storedBlueprint->latestRevision->toBlueprintData();
+        }
+
+        $legacyBaseline = $blueprint->meta['legacy_baseline'] ?? null;
+
+        if (! is_array($legacyBaseline)) {
+            return null;
+        }
+
+        return BlueprintData::fromArray($legacyBaseline, shouldValidate: false);
     }
 
     private function buildAdditivePreviewOperationsFromSchema(BlueprintData $blueprint): array
@@ -465,6 +479,114 @@ readonly class MigrationGenerator extends AbstractGenerator
             '{{ columns }}' => implode("\n            ", $upLines),
             '{{ rollback_columns }}' => implode("\n            ", array_reverse($downLines)),
         ]);
+    }
+
+    private function buildSyncMigrationFilename(string $tableName, array $upLines): string
+    {
+        return date('Y_m_d_His').'_'.$this->determineSyncMigrationDescriptor($tableName, $upLines).'.php';
+    }
+
+    private function determineSyncMigrationDescriptor(string $tableName, array $upLines): string
+    {
+        $addedColumns = [];
+        $updatedColumns = [];
+        $hasMixedOperations = false;
+
+        foreach ($upLines as $line) {
+            if (str_contains($line, '->change();')) {
+                $columnName = $this->extractColumnNameFromMigrationLine($line);
+
+                if ($columnName === null) {
+                    $hasMixedOperations = true;
+
+                    continue;
+                }
+
+                $updatedColumns[] = $columnName;
+
+                continue;
+            }
+
+            if (preg_match('/^\$table->(?:unique|index)\(\'([^\']+)\'\);$/', $line, $matches) === 1) {
+                $updatedColumns[] = $matches[1];
+
+                continue;
+            }
+
+            if (preg_match('/^\$table->(?:dropUnique|dropIndex)\(\[\'([^\']+)\']\);$/', $line, $matches) === 1) {
+                $updatedColumns[] = $matches[1];
+
+                continue;
+            }
+
+            if (preg_match('/^\$table->(?:renameColumn|dropColumn|softDeletes|dropSoftDeletes)/', $line) === 1) {
+                $hasMixedOperations = true;
+
+                continue;
+            }
+
+            $columnName = $this->extractColumnNameFromMigrationLine($line);
+
+            if ($columnName !== null) {
+                $addedColumns[] = $columnName;
+
+                continue;
+            }
+
+            $hasMixedOperations = true;
+        }
+
+        $addedColumns = array_values(array_unique(array_map(fn (string $column) => $this->normalizeMigrationSegment($column), $addedColumns)));
+        $updatedColumns = array_values(array_unique(array_map(fn (string $column) => $this->normalizeMigrationSegment($column), $updatedColumns)));
+        $normalizedTableName = $this->normalizeMigrationSegment($tableName);
+
+        if (! $hasMixedOperations && $addedColumns !== [] && $updatedColumns === []) {
+            return $this->buildColumnDescriptor('add', $addedColumns, $normalizedTableName);
+        }
+
+        if (! $hasMixedOperations && $addedColumns === [] && $updatedColumns !== []) {
+            return $this->buildColumnDescriptor('update', $updatedColumns, $normalizedTableName);
+        }
+
+        return "update_{$normalizedTableName}_table";
+    }
+
+    private function buildColumnDescriptor(string $action, array $columns, string $tableName): string
+    {
+        $prefix = match ($action) {
+            'add' => count($columns) === 1 ? 'add_column' : 'add_columns',
+            default => count($columns) === 1 ? 'update_column' : 'update_columns',
+        };
+
+        $suffix = match ($action) {
+            'add' => 'to',
+            default => 'on',
+        };
+
+        $descriptor = $prefix.'_'.implode('_', $columns)."_{$suffix}_{$tableName}";
+
+        if (strlen($descriptor) > 200) {
+            return "update_{$tableName}_table";
+        }
+
+        return $descriptor;
+    }
+
+    private function extractColumnNameFromMigrationLine(string $line): ?string
+    {
+        if (preg_match('/^\$table->\w+\(\'([^\']+)\'\)/', $line, $matches) !== 1) {
+            return null;
+        }
+
+        return $matches[1];
+    }
+
+    private function normalizeMigrationSegment(string $value): string
+    {
+        return trim((string) Str::of($value)
+            ->snake()
+            ->replaceMatches('/[^a-z0-9_]+/', '_')
+            ->replaceMatches('/_+/', '_'), '_');
     }
 
     private function buildSyncOperations(BlueprintData $blueprint): array

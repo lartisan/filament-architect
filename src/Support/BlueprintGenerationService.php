@@ -35,6 +35,9 @@ class BlueprintGenerationService
             throw InvalidBlueprintException::unsafeRequiredColumnAddition($blueprintData->tableName, $blockingColumns);
         }
 
+        $migrationGenerator = MigrationGenerator::make();
+        $migrationPreview = $migrationGenerator->preview($blueprintData);
+
         $storedBlueprint = ArchitectBlueprint::updateOrCreate(
             ['table_name' => $blueprintData->tableName],
             $blueprintData->toFormData()
@@ -55,7 +58,13 @@ class BlueprintGenerationService
                 ->delete();
         }
 
-        MigrationGenerator::make()->generate($blueprintData);
+        $generatedMigrationPath = $migrationGenerator->generate($blueprintData);
+        $generatedMigrationMeta = $this->buildGeneratedMigrationMeta($generatedMigrationPath, $migrationPreview);
+
+        $storedBlueprint->forceFill([
+            'meta' => array_merge($storedBlueprint->meta ?? [], $generatedMigrationMeta),
+        ])->save();
+
         ModelGenerator::make()->generate($blueprintData);
 
         if ($blueprintData->generateFactory) {
@@ -71,9 +80,10 @@ class BlueprintGenerationService
         }
 
         $storedBlueprint->recordRevision($blueprintData, [
-            'source' => 'architect',
+            'source' => $blueprintData->meta['source'] ?? 'architect',
             'generated_at' => now()->toIso8601String(),
             'generation_mode' => $blueprintData->generationMode->value,
+            ...$generatedMigrationMeta,
         ]);
 
         $shouldRunMigration = $blueprintData->runMigration
@@ -93,6 +103,34 @@ class BlueprintGenerationService
         return [
             'plan' => $plan,
             'shouldRunMigration' => $shouldRunMigration,
+        ];
+    }
+
+    /**
+     * @return array{generated_migration: array{generated: bool, path: string|null, file_name: string|null, content: string|null, preview: string|null}}
+     */
+    protected function buildGeneratedMigrationMeta(string $generatedMigrationPath, ?string $migrationPreview = null): array
+    {
+        $relativePath = null;
+        $fileName = null;
+        $content = null;
+
+        if ($generatedMigrationPath !== '') {
+            $relativePath = Str::after($generatedMigrationPath, base_path().DIRECTORY_SEPARATOR);
+            $fileName = basename($generatedMigrationPath);
+            $content = File::exists($generatedMigrationPath)
+                ? File::get($generatedMigrationPath)
+                : null;
+        }
+
+        return [
+            'generated_migration' => [
+                'generated' => $generatedMigrationPath !== '',
+                'path' => $relativePath,
+                'file_name' => $fileName,
+                'content' => $content,
+                'preview' => $migrationPreview,
+            ],
         ];
     }
 }

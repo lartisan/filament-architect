@@ -2,10 +2,21 @@
 
 use Illuminate\Support\Facades\File;
 use Lartisan\Architect\Generators\ModelGenerator;
+use Lartisan\Architect\Support\GenerationPathResolver;
 use Lartisan\Architect\Tests\TestCase;
 use Lartisan\Architect\ValueObjects\BlueprintData;
 
 uses(TestCase::class);
+
+beforeEach(function () {
+    config()->set('architect.models_namespace', modelGeneratorTestModelsNamespace());
+});
+
+afterEach(function () {
+    if (File::isDirectory(modelGeneratorTestModelsRoot())) {
+        File::deleteDirectory(modelGeneratorTestModelsRoot());
+    }
+});
 
 it('generates a model file with correct content', function () {
     $blueprint = BlueprintData::fromArray([
@@ -156,3 +167,14 @@ it('includes foreign keys in fillable attributes', function () {
 
     File::delete($path);
 });
+
+function modelGeneratorTestModelsNamespace(): string
+{
+    return 'App\\Testing\\ModelGenerator\\Models';
+}
+
+function modelGeneratorTestModelsRoot(): string
+{
+    return dirname(GenerationPathResolver::model('Project'));
+}
+

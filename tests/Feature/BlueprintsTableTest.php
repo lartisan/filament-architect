@@ -27,6 +27,11 @@ beforeEach(function () {
     // Load Laravel migrations (users table, etc.)
     $this->loadLaravelMigrations();
 
+    config()->set('architect.models_namespace', blueprintsTableModelsNamespace());
+    config()->set('architect.factories_namespace', blueprintsTableFactoriesNamespace());
+    config()->set('architect.seeders_namespace', blueprintsTableSeedersNamespace());
+    config()->set('architect.resources_namespace', blueprintsTableResourcesNamespace());
+
     app(ArchitectUiExtensionRegistry::class)->flush();
 
     // Clean up any leftover files from previous tests
@@ -64,6 +69,17 @@ function cleanupTestFiles(): void
         $resourceDir = GenerationPathResolver::resourceDirectory("{$model}Resource");
         if (File::isDirectory($resourceDir)) {
             File::deleteDirectory($resourceDir);
+        }
+    }
+
+    foreach ([
+        blueprintsTableModelsRoot(),
+        blueprintsTableFactoriesRoot(),
+        blueprintsTableSeedersRoot(),
+        blueprintsTableResourcesRoot(),
+    ] as $directory) {
+        if (File::isDirectory($directory)) {
+            File::deleteDirectory($directory);
         }
     }
 
@@ -106,7 +122,7 @@ it('deletes blueprint and all associated files when delete action is called', fu
     expect(File::exists($resourcePath))->toBeTrue('Resource file should exist');
 
     // Run migration to create table
-    Artisan::call('migrate', ['--path' => 'database/migrations']);
+    migrateBlueprintsTableTestMigration($migrationPath);
 
     // Verify table was created
     expect(Schema::hasTable('products'))->toBeTrue('Table should exist in database');
@@ -127,7 +143,7 @@ it('deletes blueprint and all associated files when delete action is called', fu
     ]);
 
     // Verify resource pages exist
-    $resourceDir = app_path('Filament/Resources/ProductResource');
+    $resourceDir = GenerationPathResolver::resourceDirectory('ProductResource');
     expect(File::exists("$resourceDir/Pages/ListProducts.php"))->toBeTrue('List page should exist');
     expect(File::exists("$resourceDir/Pages/CreateProduct.php"))->toBeTrue('Create page should exist');
     expect(File::exists("$resourceDir/Pages/EditProduct.php"))->toBeTrue('Edit page should exist');
@@ -188,7 +204,7 @@ it('handles deletion gracefully when some files do not exist', function () {
     $modelPath = (new ModelGenerator)->generate($blueprintData);
 
     // Run migration
-    Artisan::call('migrate', ['--path' => 'database/migrations']);
+    migrateBlueprintsTableTestMigration($migrationPath);
 
     // Verify initial state
     expect(File::exists($modelPath))->toBeTrue();
@@ -217,7 +233,7 @@ it('deletes multiple blueprints independently', function () {
 
     $migrationPath1 = (new MigrationGenerator)->generate($blueprint1Data);
     $modelPath1 = (new ModelGenerator)->generate($blueprint1Data);
-    Artisan::call('migrate', ['--path' => 'database/migrations']);
+    migrateBlueprintsTableTestMigration($migrationPath1);
 
     $blueprint1 = Blueprint::create([
         'table_name' => 'products',
@@ -238,7 +254,7 @@ it('deletes multiple blueprints independently', function () {
 
     $migrationPath2 = (new MigrationGenerator)->generate($blueprint2Data);
     $modelPath2 = (new ModelGenerator)->generate($blueprint2Data);
-    Artisan::call('migrate', ['--path' => 'database/migrations']);
+    migrateBlueprintsTableTestMigration($migrationPath2);
 
     $blueprint2 = Blueprint::create([
         'table_name' => 'articles',
@@ -330,7 +346,7 @@ it('can delete only the stored blueprint snapshot without deleting generated art
     $migrationPath = (new MigrationGenerator)->generate($blueprintData);
     $modelPath = (new ModelGenerator)->generate($blueprintData);
 
-    Artisan::call('migrate', ['--path' => 'database/migrations']);
+    migrateBlueprintsTableTestMigration($migrationPath);
 
     $blueprint = Blueprint::create([
         'table_name' => 'products',
@@ -347,3 +363,52 @@ it('can delete only the stored blueprint snapshot without deleting generated art
         ->and(File::exists($modelPath))->toBeTrue()
         ->and(File::exists($migrationPath))->toBeTrue();
 });
+
+function blueprintsTableModelsNamespace(): string
+{
+    return 'App\\Testing\\BlueprintsTable\\Models';
+}
+
+function blueprintsTableFactoriesNamespace(): string
+{
+    return 'Database\\Testing\\BlueprintsTable\\Factories';
+}
+
+function blueprintsTableSeedersNamespace(): string
+{
+    return 'Database\\Testing\\BlueprintsTable\\Seeders';
+}
+
+function blueprintsTableResourcesNamespace(): string
+{
+    return 'App\\Testing\\BlueprintsTable\\Filament\\Resources';
+}
+
+function blueprintsTableModelsRoot(): string
+{
+    return dirname(GenerationPathResolver::model('Product'));
+}
+
+function blueprintsTableFactoriesRoot(): string
+{
+    return dirname(GenerationPathResolver::factory('ProductFactory'));
+}
+
+function blueprintsTableSeedersRoot(): string
+{
+    return dirname(GenerationPathResolver::seeder('ProductSeeder'));
+}
+
+function blueprintsTableResourcesRoot(): string
+{
+    return dirname(dirname(GenerationPathResolver::resource('ProductResource')));
+}
+
+function migrateBlueprintsTableTestMigration(string $path): void
+{
+    Artisan::call('migrate', [
+        '--path' => $path,
+        '--realpath' => true,
+    ]);
+}
+

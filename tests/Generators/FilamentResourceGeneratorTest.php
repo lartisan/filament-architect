@@ -12,13 +12,22 @@ use Lartisan\Architect\ValueObjects\BlueprintData;
 
 uses(TestCase::class);
 
+beforeEach(function () {
+    config()->set('architect.resources_namespace', testResourcesNamespace());
+    config()->set('architect.models_namespace', testModelsNamespace());
+});
+
 afterEach(function () {
-    if (File::isDirectory(app_path('Filament'))) {
-        File::deleteDirectory(app_path('Filament'));
+    if (File::isDirectory(testResourcesRoot())) {
+        File::deleteDirectory(testResourcesRoot());
     }
 
     foreach (['User', 'Post', 'Author', 'Category'] as $model) {
-        File::delete(app_path("Models/{$model}.php"));
+        File::delete(GenerationPathResolver::model($model));
+    }
+
+    if (File::isDirectory(testModelsRoot())) {
+        File::deleteDirectory(testModelsRoot());
     }
 
     foreach (['users', 'posts', 'authors', 'categories'] as $table) {
@@ -29,8 +38,6 @@ afterEach(function () {
 });
 
 it('generates a filament resource and pages', function () {
-    config()->set('architect.resources_namespace', 'App\\Filament\\Resources');
-
     $blueprint = BlueprintData::fromArray([
         'table_name' => 'projects',
         'model_name' => 'Project',
@@ -53,19 +60,17 @@ it('generates a filament resource and pages', function () {
         ->toContain('Tables\Columns\TextColumn::make(\'title\')');
 
     // Check pages
-    $resourceDir = app_path('Filament/Resources/ProjectResource');
+    $resourceDir = GenerationPathResolver::resourceDirectory('ProjectResource');
     expect(File::exists("$resourceDir/Pages/ListProjects.php"))->toBeTrue()
         ->and(File::exists("$resourceDir/Pages/CreateProject.php"))->toBeTrue()
         ->and(File::exists("$resourceDir/Pages/EditProject.php"))->toBeTrue()
         ->and(File::exists("$resourceDir/Pages/ViewProject.php"))->toBeTrue();
 
     // Cleanup
-    File::deleteDirectory(app_path('Filament'));
+    File::deleteDirectory(testResourcesRoot());
 });
 
 it('generates a filament resource with soft deletes', function () {
-    config()->set('architect.resources_namespace', 'App\\Filament\\Resources');
-
     $blueprint = BlueprintData::fromArray([
         'table_name' => 'projects',
         'model_name' => 'Project',
@@ -88,47 +93,14 @@ it('generates a filament resource with soft deletes', function () {
         ->toContain('\Filament\Actions\RestoreBulkAction::make()')
         ->toContain('public static function getEloquentQuery(): Builder');
 
-    File::deleteDirectory(app_path('Filament'));
+    File::deleteDirectory(testResourcesRoot());
 });
 
 it('generates proper select components for all foreign key types', function () {
-    File::ensureDirectoryExists(app_path('Models'));
-    File::put(app_path('Models/User.php'), <<<'PHP'
-<?php
-
-namespace App\Models;
-
-use Illuminate\Database\Eloquent\Model;
-
-class User extends Model {}
-PHP);
-    File::put(app_path('Models/Post.php'), <<<'PHP'
-<?php
-
-namespace App\Models;
-
-use Illuminate\Database\Eloquent\Model;
-
-class Post extends Model {}
-PHP);
-    File::put(app_path('Models/Author.php'), <<<'PHP'
-<?php
-
-namespace App\Models;
-
-use Illuminate\Database\Eloquent\Model;
-
-class Author extends Model {}
-PHP);
-    File::put(app_path('Models/Category.php'), <<<'PHP'
-<?php
-
-namespace App\Models;
-
-use Illuminate\Database\Eloquent\Model;
-
-class Category extends Model {}
-PHP);
+    writeTestModel('User');
+    writeTestModel('Post');
+    writeTestModel('Author');
+    writeTestModel('Category');
 
     Schema::create('users', function (Blueprint $table) {
         $table->id();
@@ -178,7 +150,7 @@ PHP);
         ->toContain("->relationship('category', 'label')")
         ->toContain('->unique(ignoreRecord: true)');
 
-    File::deleteDirectory(app_path('Filament'));
+    File::deleteDirectory(testResourcesRoot());
 });
 
 it('falls back to the related key when no safe relationship title attribute can be inferred', function () {
@@ -198,16 +170,7 @@ it('falls back to the related key when no safe relationship title attribute can 
 });
 
 it('generates relationship columns in table with the inferred display attribute', function () {
-    File::ensureDirectoryExists(app_path('Models'));
-    File::put(app_path('Models/Author.php'), <<<'PHP'
-<?php
-
-namespace App\Models;
-
-use Illuminate\Database\Eloquent\Model;
-
-class Author extends Model {}
-PHP);
+    writeTestModel('Author');
 
     Schema::create('authors', function (Blueprint $table) {
         $table->id();
@@ -237,18 +200,7 @@ PHP);
 });
 
 it('merges missing generated resource pieces without removing customizations', function () {
-    config()->set('architect.resources_namespace', 'App\\Filament\\Resources');
-
-    File::ensureDirectoryExists(app_path('Models'));
-    File::put(app_path('Models/User.php'), <<<'PHP'
-<?php
-
-namespace App\Models;
-
-use Illuminate\Database\Eloquent\Model;
-
-class User extends Model {}
-PHP);
+    writeTestModel('User');
 
     Schema::create('users', function (Blueprint $table) {
         $table->id();
@@ -260,10 +212,10 @@ PHP);
     File::put($resourcePath, <<<'PHP'
 <?php
 
-namespace App\Filament\Resources;
+namespace App\Testing\FilamentResourceGenerator\Filament\Resources;
 
-use App\Filament\Resources\ProjectResource\Pages;
-use App\Models\Project;
+use App\Testing\FilamentResourceGenerator\Filament\Resources\ProjectResource\Pages;
+use App\Testing\FilamentResourceGenerator\Models\Project;
 use Filament\Forms;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Resources\Resource;
@@ -360,14 +312,12 @@ PHP);
 });
 
 it('preserves existing resource page classes while creating missing ones', function () {
-    config()->set('architect.resources_namespace', 'App\\Filament\\Resources');
-
     $resourceDir = GenerationPathResolver::resourceDirectory('ProjectResource');
     File::ensureDirectoryExists("{$resourceDir}/Pages");
     File::put("{$resourceDir}/Pages/ListProjects.php", <<<'PHP'
 <?php
 
-namespace App\Filament\Resources\ProjectResource\Pages;
+namespace App\Testing\FilamentResourceGenerator\Filament\Resources\ProjectResource\Pages;
 
 class ListProjects
 {
@@ -397,17 +347,15 @@ PHP);
 });
 
 it('removes stale managed resource fields when columns are deleted while keeping custom items', function () {
-    config()->set('architect.resources_namespace', 'App\\Filament\\Resources');
-
     $resourcePath = GenerationPathResolver::resource('ProjectResource');
     File::ensureDirectoryExists(dirname($resourcePath));
     File::put($resourcePath, <<<'PHP'
 <?php
 
-namespace App\Filament\Resources;
+namespace App\Testing\FilamentResourceGenerator\Filament\Resources;
 
-use App\Filament\Resources\ProjectResource\Pages;
-use App\Models\Project;
+use App\Testing\FilamentResourceGenerator\Filament\Resources\ProjectResource\Pages;
+use App\Testing\FilamentResourceGenerator\Models\Project;
 use Filament\Forms;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Resources\Resource;
@@ -483,16 +431,7 @@ PHP);
 });
 
 it('prefers explicitly selected relationship metadata over inferred title attributes', function () {
-    File::ensureDirectoryExists(app_path('Models'));
-    File::put(app_path('Models/Post.php'), <<<'PHP'
-<?php
-
-namespace App\Models;
-
-use Illuminate\Database\Eloquent\Model;
-
-class Post extends Model {}
-PHP);
+    writeTestModel('Post');
 
     Schema::create('posts', function (Blueprint $table) {
         $table->id();
@@ -520,16 +459,7 @@ PHP);
 });
 
 it('keeps the foreign key field name in the form while using the selected relationship title column', function () {
-    File::ensureDirectoryExists(app_path('Models'));
-    File::put(app_path('Models/User.php'), <<<'PHP'
-<?php
-
-namespace App\Models;
-
-use Illuminate\Database\Eloquent\Model;
-
-class User extends Model {}
-PHP);
+    writeTestModel('User');
 
     Schema::create('users', function (Blueprint $table) {
         $table->id();
@@ -558,3 +488,39 @@ PHP);
         ->toContain("Tables\\Columns\\TextColumn::make('author.name')")
         ->not->toContain("Forms\\Components\\Select::make('author.name')");
 });
+
+function testResourcesNamespace(): string
+{
+    return 'App\\Testing\\FilamentResourceGenerator\\Filament\\Resources';
+}
+
+function testModelsNamespace(): string
+{
+    return 'App\\Testing\\FilamentResourceGenerator\\Models';
+}
+
+function testResourcesRoot(): string
+{
+    return dirname(dirname(GenerationPathResolver::resource('ProjectResource')));
+}
+
+function testModelsRoot(): string
+{
+    return dirname(GenerationPathResolver::model('Project'));
+}
+
+function writeTestModel(string $modelName): void
+{
+    $path = GenerationPathResolver::model($modelName);
+    File::ensureDirectoryExists(dirname($path));
+    File::put($path, <<<PHP
+<?php
+
+namespace {testModelsNamespace()};
+
+use Illuminate\\Database\\Eloquent\\Model;
+
+class {$modelName} extends Model {}
+PHP);
+}
+

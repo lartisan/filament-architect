@@ -8,9 +8,18 @@ use Lartisan\Architect\ValueObjects\BlueprintData;
 
 uses(TestCase::class);
 
+beforeEach(function () {
+    config()->set('architect.models_namespace', factoryGeneratorTestModelsNamespace());
+    config()->set('architect.factories_namespace', factoryGeneratorTestFactoriesNamespace());
+});
+
 afterEach(function () {
     File::delete(GenerationPathResolver::factory('ProjectFactory'));
     File::delete(GenerationPathResolver::factory('PostFactory'));
+
+    if (File::isDirectory(factoryGeneratorTestFactoriesRoot())) {
+        File::deleteDirectory(factoryGeneratorTestFactoriesRoot());
+    }
 });
 
 it('generates a factory file', function () {
@@ -64,7 +73,7 @@ it('uses the selected related table model for foreign key factory definitions', 
     $path = (new FactoryGenerator)->generate($blueprint);
     $content = File::get($path);
 
-    expect($content)->toContain("'author_id' => \\App\\Models\\User::factory()");
+    expect($content)->toContain("'author_id' => \\".factoryGeneratorTestModelsNamespace()."\\User::factory()");
 
     File::delete($path);
 });
@@ -75,9 +84,9 @@ it('merges missing factory definition keys without overwriting custom values', f
     File::put($path, <<<'PHP'
 <?php
 
-namespace Database\Factories;
+namespace Database\Testing\FactoryGenerator\Factories;
 
-use App\Models\Project;
+use App\Testing\FactoryGenerator\Models\Project;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 class ProjectFactory extends Factory
@@ -124,3 +133,19 @@ PHP);
         ->and($content)->toContain("'description' => \$this->faker->paragraphs(3, true)")
         ->and($content)->toContain('public function archived(): static');
 });
+
+function factoryGeneratorTestModelsNamespace(): string
+{
+    return 'App\\Testing\\FactoryGenerator\\Models';
+}
+
+function factoryGeneratorTestFactoriesNamespace(): string
+{
+    return 'Database\\Testing\\FactoryGenerator\\Factories';
+}
+
+function factoryGeneratorTestFactoriesRoot(): string
+{
+    return dirname(GenerationPathResolver::factory('ProjectFactory'));
+}
+

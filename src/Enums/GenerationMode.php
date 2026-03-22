@@ -2,6 +2,8 @@
 
 namespace Lartisan\Architect\Enums;
 
+use Illuminate\Container\Container;
+
 enum GenerationMode: string
 {
     case Create = 'create';
@@ -10,7 +12,15 @@ enum GenerationMode: string
 
     public static function default(): self
     {
-        return self::tryFrom((string) config('architect.default_generation_mode', self::Merge->value)) ?? self::Merge;
+        $container = Container::getInstance();
+
+        if (! $container instanceof Container || ! $container->bound('config')) {
+            return self::Merge;
+        }
+
+        $default = $container->make('config')->get('architect.default_generation_mode', self::Merge->value);
+
+        return self::tryFrom((string) $default) ?? self::Merge;
     }
 
     public static function options(): array
