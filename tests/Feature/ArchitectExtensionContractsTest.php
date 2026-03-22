@@ -1,6 +1,7 @@
 <?php
 
 use Filament\Schemas\Components\Tabs;
+use Filament\Tables\Columns\TextColumn;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
@@ -107,10 +108,13 @@ it('stores ui extensions for create, existing resources, and extra tabs', functi
 
     $registry->registerCreateEditExtension(fn (): array => ['create-edit-fragment'])
         ->registerExistingResourcesExtension(fn (): array => ['existing-resource-fragment'])
-        ->registerTab(fn (): Tabs\Tab => Tabs\Tab::make('Premium'));
+        ->registerTab(fn (): Tabs\Tab => Tabs\Tab::make('Premium'))
+        ->registerBlueprintsTableCollapsibleContent(fn (): TextColumn => TextColumn::make('revision_history'));
 
     expect(ArchitectPlugin::uiExtensions()->createEditExtensions())->toBe(['create-edit-fragment'])
         ->and(ArchitectPlugin::uiExtensions()->existingResourcesExtensions())->toBe(['existing-resource-fragment'])
+        ->and(ArchitectPlugin::uiExtensions()->blueprintsTableCollapsibleContent())->toHaveCount(1)
+        ->and(ArchitectPlugin::uiExtensions()->blueprintsTableCollapsibleContent()[0])->toBeInstanceOf(TextColumn::class)
         ->and(ArchitectPlugin::uiExtensions()->tabs())->toHaveCount(1)
         ->and(ArchitectPlugin::uiExtensions()->tabs()[0])->toBeInstanceOf(Tabs\Tab::class);
 });

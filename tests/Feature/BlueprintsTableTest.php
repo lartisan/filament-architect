@@ -2,6 +2,8 @@
 
 namespace Lartisan\Architect\Tests\Feature;
 
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Table;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
@@ -13,6 +15,7 @@ use Lartisan\Architect\Generators\ModelGenerator;
 use Lartisan\Architect\Generators\SeederGenerator;
 use Lartisan\Architect\Livewire\BlueprintsTable;
 use Lartisan\Architect\Models\Blueprint;
+use Lartisan\Architect\Support\ArchitectUiExtensionRegistry;
 use Lartisan\Architect\Support\BlueprintDeletionService;
 use Lartisan\Architect\Support\GenerationPathResolver;
 use Lartisan\Architect\Tests\TestCase;
@@ -24,11 +27,15 @@ beforeEach(function () {
     // Load Laravel migrations (users table, etc.)
     $this->loadLaravelMigrations();
 
+    app(ArchitectUiExtensionRegistry::class)->flush();
+
     // Clean up any leftover files from previous tests
     cleanupTestFiles();
 });
 
 afterEach(function () {
+    app(ArchitectUiExtensionRegistry::class)->flush();
+
     // Cleanup all generated files
     cleanupTestFiles();
 });
@@ -294,6 +301,18 @@ it('redirects to the panel root after deleting a blueprint', function () {
     $component->deleteBlueprint($blueprint);
 
     expect(Blueprint::find($blueprint->id))->toBeNull();
+});
+
+it('mounts registered collapsible row content in the blueprints table', function () {
+    app(ArchitectUiExtensionRegistry::class)
+        ->registerBlueprintsTableCollapsibleContent(fn (): TextColumn => TextColumn::make('revision_history'));
+
+    $component = app(BlueprintsTable::class);
+    $table = $component->table(Table::make($component));
+
+    expect($table->getCollapsibleColumnsLayout())->not->toBeNull()
+        ->and($table->getCollapsibleColumnsLayout()?->isCollapsed())->toBeTrue()
+        ->and($table->getColumn('revision_history'))->toBeInstanceOf(TextColumn::class);
 });
 
 it('can delete only the stored blueprint snapshot without deleting generated artifacts', function () {

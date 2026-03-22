@@ -11,12 +11,15 @@ use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\Layout\Panel;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
 use Lartisan\Architect\Models\Blueprint;
+use Lartisan\Architect\Support\ArchitectUiExtensionRegistry;
 use Lartisan\Architect\Support\BlueprintDeletionService;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 class BlueprintsTable extends Component implements HasActions, HasForms, HasTable
@@ -29,11 +32,8 @@ class BlueprintsTable extends Component implements HasActions, HasForms, HasTabl
     {
         return $table
             ->query(Blueprint::query()->latest())
-            ->columns([
-                TextColumn::make('table_name')->label(__('Table'))->searchable(),
-                TextColumn::make('model_name')->label(__('Model')),
-                TextColumn::make('created_at')->dateTime()->label(__('Created At')),
-            ])
+            ->striped()
+            ->columns($this->getTableColumns())
             ->recordActions([
                 Action::make('load')
                     ->label(__('Load'))
@@ -66,10 +66,36 @@ class BlueprintsTable extends Component implements HasActions, HasForms, HasTabl
             ]);
     }
 
+    /**
+     * @return array<int, TextColumn|Panel>
+     */
+    protected function getTableColumns(): array
+    {
+        $columns = [
+            TextColumn::make('table_name')->label(__('Table'))->searchable(),
+            TextColumn::make('model_name')->label(__('Model')),
+            TextColumn::make('created_at')->dateTime()->label(__('Created At')),
+        ];
+
+        $collapsibleContent = app(ArchitectUiExtensionRegistry::class)->blueprintsTableCollapsibleContent();
+
+        if ($collapsibleContent === []) {
+            return $columns;
+        }
+
+        $columns[] = Panel::make($collapsibleContent)
+            ->collapsed();
+
+        return $columns;
+    }
+
     public function activateFirstTab(): void
     {
         $this->dispatch('activate-first-tab');
     }
+
+    #[On('architect-blueprint-updated')]
+    public function refreshBlueprintTable(): void {}
 
     public function render()
     {

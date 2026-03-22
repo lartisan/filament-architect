@@ -30,6 +30,7 @@ use Lartisan\Architect\Generators\MigrationGenerator;
 use Lartisan\Architect\Generators\ModelGenerator;
 use Lartisan\Architect\Generators\SeederGenerator;
 use Lartisan\Architect\Livewire\BlueprintsTable;
+use Lartisan\Architect\Models\BlueprintRevision;
 use Lartisan\Architect\Support\ArchitectUiExtensionRegistry;
 use Lartisan\Architect\Support\BlueprintGenerationService;
 use Lartisan\Architect\Support\RegenerationPlanner;
@@ -106,8 +107,8 @@ class ArchitectAction extends Action
     protected static function tabs(): array
     {
         return [
-            self::createEditTab(),
             self::existingResourcesTab(),
+            self::createEditTab(),
             ...app(ArchitectUiExtensionRegistry::class)->tabs(),
         ];
     }
@@ -135,8 +136,9 @@ class ArchitectAction extends Action
 
     protected static function existingResourcesTab(): Tabs\Tab
     {
-        return Tabs\Tab::make(__('Existing Resources'))
+        return Tabs\Tab::make(__('Blueprints'))
             ->key(self::EXISTING_RESOURCES_TAB_KEY)
+            ->visible(fn () => BlueprintRevision::query()->exists())
             ->icon(Heroicon::ListBullet)
             ->id('tab-list')
             ->schema([
@@ -198,8 +200,10 @@ class ArchitectAction extends Action
                         ->default(false)
                         ->live(),
 
-                    Hidden::make('table_exists')
-                        ->default(false),
+                    Hidden::make('table_exists'),
+                    Hidden::make('meta')
+                        ->formatStateUsing(fn ($state) => is_array($state) ? json_encode($state) : $state)
+                        ->dehydrateStateUsing(fn ($state) => is_string($state) ? json_decode($state, true) : $state),
 
                     Repeater::make('columns')
                         ->label(__('Columns'))

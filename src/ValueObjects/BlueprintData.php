@@ -28,6 +28,7 @@ readonly class BlueprintData
         public GenerationMode $generationMode = GenerationMode::Merge,
         public bool $allowDestructiveChanges = false,
         public bool $allowLikelyRenames = false,
+        public array $meta = [],
         bool $shouldValidate = false,
     ) {
         if ($shouldValidate) {
@@ -63,6 +64,7 @@ readonly class BlueprintData
             generationMode: GenerationMode::tryFrom((string) ($data['generation_mode'] ?? $meta['generation_mode'] ?? GenerationMode::default()->value)) ?? GenerationMode::default(),
             allowDestructiveChanges: (bool) ($data['allow_destructive_changes'] ?? $meta['allow_destructive_changes'] ?? false),
             allowLikelyRenames: (bool) ($data['allow_likely_renames'] ?? $meta['allow_likely_renames'] ?? false),
+            meta: $meta,
             shouldValidate: $shouldValidate,
         );
     }
@@ -78,14 +80,14 @@ readonly class BlueprintData
             'generation_mode' => $this->generationMode->value,
             'allow_destructive_changes' => $this->allowDestructiveChanges,
             'allow_likely_renames' => $this->allowLikelyRenames,
-            'meta' => [
+            'meta' => array_merge($this->meta, [
                 'gen_factory' => $this->generateFactory,
                 'gen_seeder' => $this->generateSeeder,
                 'gen_resource' => $this->generateResource,
                 'generation_mode' => $this->generationMode->value,
                 'allow_destructive_changes' => $this->allowDestructiveChanges,
                 'allow_likely_renames' => $this->allowLikelyRenames,
-            ],
+            ]),
         ];
     }
 

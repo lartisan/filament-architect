@@ -42,7 +42,7 @@ class Blueprint extends Model
             'revision' => $nextRevision,
             'snapshot_version' => BlueprintRevisionSnapshot::CURRENT_VERSION,
             'snapshot' => $blueprintData->toFormData(),
-            'meta' => $meta,
+            'meta' => array_merge($blueprintData->meta, $meta),
         ]);
     }
 

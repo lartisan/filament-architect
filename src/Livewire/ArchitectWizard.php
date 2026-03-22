@@ -66,6 +66,7 @@ class ArchitectWizard extends Component implements HasActions, HasForms
         if ($blueprint) {
             $data = $blueprint->toFormData();
 
+            $this->openArchitect();
             $this->getMountedActionSchema()->fill($data);
 
             Notification::make()
@@ -73,6 +74,18 @@ class ArchitectWizard extends Component implements HasActions, HasForms
                 ->success()
                 ->send();
         }
+    }
+
+    #[On('load-blueprint-data')]
+    public function loadBlueprintData(array $data): void
+    {
+        $this->openArchitect();
+        $this->getMountedActionSchema()->fill($data);
+
+        Notification::make()
+            ->title(__('Blueprint revision loaded!'))
+            ->success()
+            ->send();
     }
 
     public function deleteBlueprint(int $id): void

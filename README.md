@@ -472,7 +472,7 @@ Current code previews include:
 Architect stores blueprints in the database so you can iterate over time.
 
 Current blueprint management features:
-- list saved blueprints in the “Existing Resources” tab
+- list saved blueprints in the “Blueprints” tab
 - load a blueprint back into the wizard
 - save updated blueprint state when generating
 - delete blueprints
@@ -685,7 +685,7 @@ Review your configuration and click "Save & Generate" to:
 
 ### Managing Blueprints
 
-In the "Existing Resources" tab, you can:
+In the "Blueprints" tab, you can:
 
 - **View** all previously created blueprints
 - **Edit** and regenerate any blueprint (coming soon)
