@@ -79,7 +79,7 @@ it('planner: treats an existing foreign key column as matching a foreignId bluep
     });
 
     $plan = app(RegenerationPlanner::class)->plan(projectBlueprint([
-            ['name' => 'author_id', 'type' => 'foreignId', 'relationship_table' => 'users'],
+        ['name' => 'author_id', 'type' => 'foreignId', 'relationship_table' => 'users'],
     ]));
 
     expect($plan->hasSchemaChanges())->toBeFalse()
@@ -97,9 +97,9 @@ it('planner: ignores column order-only changes for an existing related table sch
     });
 
     $plan = app(RegenerationPlanner::class)->plan(projectBlueprint([
-            ['name' => 'title', 'type' => 'string'],
-            ['name' => 'published_at', 'type' => 'dateTime', 'is_nullable' => true],
-            ['name' => 'author_id', 'type' => 'foreignId', 'relationship_table' => 'users'],
+        ['name' => 'title', 'type' => 'string'],
+        ['name' => 'published_at', 'type' => 'dateTime', 'is_nullable' => true],
+        ['name' => 'author_id', 'type' => 'foreignId', 'relationship_table' => 'users'],
     ]));
 
     expect($plan->hasSchemaChanges())->toBeFalse()
@@ -115,8 +115,8 @@ it('planner: reports content type changes without misclassifying unchanged relat
     });
 
     $plan = app(RegenerationPlanner::class)->plan(projectBlueprint([
-            ['name' => 'author_id', 'type' => 'foreignId', 'relationship_table' => 'users'],
-            ['name' => 'summary', 'type' => 'text', 'is_nullable' => true],
+        ['name' => 'author_id', 'type' => 'foreignId', 'relationship_table' => 'users'],
+        ['name' => 'summary', 'type' => 'text', 'is_nullable' => true],
     ]));
 
     expect($plan->hasSchemaChanges())->toBeTrue()
@@ -130,10 +130,10 @@ it('preview: keeps multiple new relational columns in blueprint order from the l
     ]);
 
     $preview = (new MigrationGenerator)->preview(projectBlueprint([
-            ['name' => 'title', 'type' => 'string'],
-            ['name' => 'author_id', 'type' => 'foreignId', 'relationship_table' => 'users'],
-            ['name' => 'reviewer_id', 'type' => 'foreignId', 'relationship_table' => 'users', 'is_nullable' => true, 'is_index' => true],
-            ['name' => 'slug', 'type' => 'string', 'is_nullable' => true, 'is_unique' => true],
+        ['name' => 'title', 'type' => 'string'],
+        ['name' => 'author_id', 'type' => 'foreignId', 'relationship_table' => 'users'],
+        ['name' => 'reviewer_id', 'type' => 'foreignId', 'relationship_table' => 'users', 'is_nullable' => true, 'is_index' => true],
+        ['name' => 'slug', 'type' => 'string', 'is_nullable' => true, 'is_unique' => true],
     ]));
 
     expect($preview)
@@ -146,15 +146,15 @@ it('preview: keeps multiple new relational columns in blueprint order from the l
 
 it('preview: ignores column order-only changes for a related table from the latest revision diff', function () {
     recordProjectRevision([
-            ['name' => 'title', 'type' => 'string', 'default' => null, 'is_nullable' => false, 'is_unique' => false, 'is_index' => false],
-            ['name' => 'author_id', 'type' => 'foreignId', 'default' => null, 'is_nullable' => false, 'is_unique' => false, 'is_index' => false],
-            ['name' => 'published_at', 'type' => 'dateTime', 'default' => null, 'is_nullable' => true, 'is_unique' => false, 'is_index' => false],
+        ['name' => 'title', 'type' => 'string', 'default' => null, 'is_nullable' => false, 'is_unique' => false, 'is_index' => false],
+        ['name' => 'author_id', 'type' => 'foreignId', 'default' => null, 'is_nullable' => false, 'is_unique' => false, 'is_index' => false],
+        ['name' => 'published_at', 'type' => 'dateTime', 'default' => null, 'is_nullable' => true, 'is_unique' => false, 'is_index' => false],
     ]);
 
     $preview = (new MigrationGenerator)->preview(projectBlueprint([
-            ['name' => 'title', 'type' => 'string'],
-            ['name' => 'published_at', 'type' => 'dateTime', 'is_nullable' => true],
-            ['name' => 'author_id', 'type' => 'foreignId'],
+        ['name' => 'title', 'type' => 'string'],
+        ['name' => 'published_at', 'type' => 'dateTime', 'is_nullable' => true],
+        ['name' => 'author_id', 'type' => 'foreignId'],
     ]));
 
     expect($preview)
@@ -172,8 +172,8 @@ it('sync migration: changes a content column type from string to text', function
     });
 
     $syncPath = (new MigrationGenerator)->generate(projectBlueprint([
-            ['name' => 'title', 'type' => 'string'],
-            ['name' => 'summary', 'type' => 'text', 'is_nullable' => true],
+        ['name' => 'title', 'type' => 'string'],
+        ['name' => 'summary', 'type' => 'text', 'is_nullable' => true],
     ]));
 
     $content = File::get($syncPath);
@@ -193,16 +193,15 @@ it('sync migration: makes an existing foreign key nullable without a false type 
     });
 
     $syncPath = (new MigrationGenerator)->generate(projectBlueprint([
-            ['name' => 'author_id', 'type' => 'foreignId', 'is_nullable' => true, 'relationship_table' => 'users'],
+        ['name' => 'author_id', 'type' => 'foreignId', 'is_nullable' => true, 'relationship_table' => 'users'],
     ]));
 
     $content = File::get($syncPath);
 
     expect($content)
         ->toContain("\$table->foreignId('author_id')->nullable()->change();")
-        ->not->toContain("unsignedBigInteger → foreignid")
+        ->not->toContain('unsignedBigInteger → foreignid')
         ->not->toContain("\$table->unsignedBigInteger('author_id')->change();");
 
     File::delete($syncPath);
 });
-

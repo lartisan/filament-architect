@@ -117,4 +117,3 @@ function seederGeneratorTestSeedersRoot(): string
 {
     return dirname(GenerationPathResolver::seeder('ProjectSeeder'));
 }
-

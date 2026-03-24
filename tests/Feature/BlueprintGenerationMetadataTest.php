@@ -68,4 +68,3 @@ it('stores generated migration metadata on both the saved blueprint and its late
         ->and($revisionMigration['file_name'] ?? null)->toBe($generatedMigration['file_name'])
         ->and($formData['meta']['generated_migration']['file_name'] ?? null)->toBe($generatedMigration['file_name']);
 });
-

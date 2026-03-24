@@ -1,9 +1,10 @@
 <?php
 
 use Filament\Schemas\Components\Tabs as TabsComponent;
-use Filament\Schemas\Schema;
 use Filament\Schemas\Components\Wizard as WizardComponent;
 use Filament\Schemas\Components\Wizard\Step as WizardStep;
+use Filament\Schemas\Schema;
+use Illuminate\Support\Facades\DB;
 use Lartisan\Architect\Actions\ArchitectAction;
 use Lartisan\Architect\Livewire\ArchitectWizard;
 use Lartisan\Architect\Models\Blueprint as ArchitectBlueprint;
@@ -20,9 +21,8 @@ beforeEach(function () {
 afterEach(function () {
     app(ArchitectUiExtensionRegistry::class)->flush();
 
-    
-    \Illuminate\Support\Facades\DB::table('architect_blueprint_revisions')->delete();
-    \Illuminate\Support\Facades\DB::table('architect_blueprints')->delete();
+    DB::table('architect_blueprint_revisions')->delete();
+    DB::table('architect_blueprints')->delete();
 });
 
 it('keeps only the create edit tab visible when there are no blueprint revisions', function () {
@@ -38,7 +38,6 @@ it('keeps only the create edit tab visible when there are no blueprint revisions
     expect($tabs)->toBeInstanceOf(TabsComponent::class);
 
     /** @var TabsComponent $tabs */
-
     $tabComponents = array_values($tabs->getChildSchema()->getComponents());
 
     expect($tabComponents[0]->getKey(isAbsolute: false))->toBe('architect-create-edit-tab')
@@ -59,7 +58,6 @@ it('shows blueprints first when blueprint revisions exist', function () {
     expect($tabs)->toBeInstanceOf(TabsComponent::class);
 
     /** @var TabsComponent $tabs */
-
     $tabComponents = array_values($tabs->getChildSchema()->getComponents());
 
     expect($tabComponents[0]->getKey(isAbsolute: false))->toBe('architect-existing-resources-tab')
@@ -80,21 +78,18 @@ it('keeps the review step limited to generated file previews', function () {
     expect($tabs)->toBeInstanceOf(TabsComponent::class);
 
     /** @var TabsComponent $tabs */
-
     $createEditTab = collect($tabs->getChildSchema()->getComponents())
         ->first(fn ($component) => $component->getKey(isAbsolute: false) === 'architect-create-edit-tab');
 
     expect($createEditTab)->not->toBeNull();
 
     /** @var object $createEditTab */
-
     $wizard = collect($createEditTab->getChildSchema()->getComponents())
         ->first(fn ($component) => $component instanceof WizardComponent);
 
     expect($wizard)->toBeInstanceOf(WizardComponent::class);
 
     /** @var WizardComponent $wizard */
-
     $steps = collect($wizard->getChildSchema()->getComponents())
         ->filter(fn ($component) => $component instanceof WizardStep)
         ->values();
@@ -169,4 +164,3 @@ function createBlueprintRevisionFixture(): void
         ],
     ]));
 }
-

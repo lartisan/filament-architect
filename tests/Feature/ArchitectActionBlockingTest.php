@@ -162,4 +162,3 @@ it('builds a review validation message for blocking required additions', functio
     expect($method->invoke(null, $plan))
         ->toBe('This table already contains data. Make these new columns nullable, provide a default value, or backfill existing rows before continuing: author_id.');
 });
-

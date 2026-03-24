@@ -241,4 +241,3 @@ it('marks matching schemas as a no-op plan', function () {
         ->and($plan->schemaOperations)->toHaveCount(1)
         ->and($plan->schemaOperations[0]->action)->toBe('noop');
 });
-

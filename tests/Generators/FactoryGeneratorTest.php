@@ -73,7 +73,7 @@ it('uses the selected related table model for foreign key factory definitions', 
     $path = (new FactoryGenerator)->generate($blueprint);
     $content = File::get($path);
 
-    expect($content)->toContain("'author_id' => \\".factoryGeneratorTestModelsNamespace()."\\User::factory()");
+    expect($content)->toContain("'author_id' => \\".factoryGeneratorTestModelsNamespace().'\\User::factory()');
 
     File::delete($path);
 });
@@ -148,4 +148,3 @@ function factoryGeneratorTestFactoriesRoot(): string
 {
     return dirname(GenerationPathResolver::factory('ProjectFactory'));
 }
-

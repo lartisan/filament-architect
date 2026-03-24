@@ -323,4 +323,3 @@ function migrateArchitectWizardTestMigration(string $path): void
         '--realpath' => true,
     ]);
 }
-

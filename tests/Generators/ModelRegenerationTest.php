@@ -195,4 +195,3 @@ function modelRegenerationTestModelsRoot(): string
 {
     return dirname(GenerationPathResolver::model('Project'));
 }
-

@@ -11,7 +11,7 @@ use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
-use Filament\Tables\Columns\Layout\Panel;
+use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
@@ -30,11 +30,14 @@ class BlueprintsTable extends Component implements HasActions, HasForms, HasTabl
 
     public function table(Table $table): Table
     {
+        $extensionRecordActions = app(ArchitectUiExtensionRegistry::class)->blueprintsTableRecordActions();
+
         return $table
             ->query(Blueprint::query()->latest())
-            ->striped()
             ->columns($this->getTableColumns())
             ->recordActions([
+                ...$extensionRecordActions,
+
                 Action::make('load')
                     ->label(__('Load'))
                     ->icon('heroicon-m-arrow-path')
@@ -67,26 +70,31 @@ class BlueprintsTable extends Component implements HasActions, HasForms, HasTabl
     }
 
     /**
-     * @return array<int, TextColumn|Panel>
+     * @return array<int, TextColumn|IconColumn>
      */
     protected function getTableColumns(): array
     {
-        $columns = [
-            TextColumn::make('table_name')->label(__('Table'))->searchable(),
-            TextColumn::make('model_name')->label(__('Model')),
-            TextColumn::make('created_at')->dateTime()->label(__('Created At')),
+        return [
+            TextColumn::make('table_name')
+                ->label(__('Table'))
+                ->searchable(),
+            TextColumn::make('model_name')
+                ->label(__('Model'))
+                ->badge()
+                ->color('gray'),
+            TextColumn::make('columns_count')
+                ->label(__('Columns'))
+                ->badge()
+                ->color('primary')
+                ->state(fn (Blueprint $record): int => count($record->columns ?? [])),
+            IconColumn::make('soft_deletes')
+                ->label(__('Soft Deletes'))
+                ->boolean(),
+            TextColumn::make('created_at')
+                ->label(__('Created At'))
+                ->dateTime()
+                ->sortable(),
         ];
-
-        $collapsibleContent = app(ArchitectUiExtensionRegistry::class)->blueprintsTableCollapsibleContent();
-
-        if ($collapsibleContent === []) {
-            return $columns;
-        }
-
-        $columns[] = Panel::make($collapsibleContent)
-            ->collapsed();
-
-        return $columns;
     }
 
     public function activateFirstTab(): void

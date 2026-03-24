@@ -1,7 +1,7 @@
 <?php
 
+use Filament\Actions\Action;
 use Filament\Schemas\Components\Tabs;
-use Filament\Tables\Columns\TextColumn;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
@@ -103,18 +103,18 @@ it('merges registered architect blocks without duplicating existing types', func
         ->toBe(['hero', 'premium-carousel', 'premium-metrics']);
 });
 
-it('stores ui extensions for create, existing resources, and extra tabs', function () {
+it('stores ui extensions for create, existing resources, extra tabs, and record actions', function () {
     $registry = app(ArchitectUiExtensionRegistry::class);
 
     $registry->registerCreateEditExtension(fn (): array => ['create-edit-fragment'])
         ->registerExistingResourcesExtension(fn (): array => ['existing-resource-fragment'])
         ->registerTab(fn (): Tabs\Tab => Tabs\Tab::make('Premium'))
-        ->registerBlueprintsTableCollapsibleContent(fn (): TextColumn => TextColumn::make('revision_history'));
+        ->registerBlueprintsTableRecordActions(fn (): Action => Action::make('revision_history'));
 
     expect(ArchitectPlugin::uiExtensions()->createEditExtensions())->toBe(['create-edit-fragment'])
         ->and(ArchitectPlugin::uiExtensions()->existingResourcesExtensions())->toBe(['existing-resource-fragment'])
-        ->and(ArchitectPlugin::uiExtensions()->blueprintsTableCollapsibleContent())->toHaveCount(1)
-        ->and(ArchitectPlugin::uiExtensions()->blueprintsTableCollapsibleContent()[0])->toBeInstanceOf(TextColumn::class)
+        ->and(ArchitectPlugin::uiExtensions()->blueprintsTableRecordActions())->toHaveCount(1)
+        ->and(ArchitectPlugin::uiExtensions()->blueprintsTableRecordActions()[0])->toBeInstanceOf(Action::class)
         ->and(ArchitectPlugin::uiExtensions()->tabs())->toHaveCount(1)
         ->and(ArchitectPlugin::uiExtensions()->tabs()[0])->toBeInstanceOf(Tabs\Tab::class);
 });

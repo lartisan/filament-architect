@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Lartisan\Architect\Enums\GenerationMode;
 use Lartisan\Architect\Models\Blueprint as ArchitectBlueprint;
+use Lartisan\Architect\Models\BlueprintRevision;
 use Lartisan\Architect\ValueObjects\BlueprintData;
 use Lartisan\Architect\ValueObjects\ColumnDefinition;
 
@@ -336,7 +337,7 @@ readonly class MigrationGenerator extends AbstractGenerator
             ->with('latestRevision')
             ->first();
 
-        if ($storedBlueprint?->latestRevision instanceof \Lartisan\Architect\Models\BlueprintRevision) {
+        if ($storedBlueprint?->latestRevision instanceof BlueprintRevision) {
             return $storedBlueprint->latestRevision->toBlueprintData();
         }
 

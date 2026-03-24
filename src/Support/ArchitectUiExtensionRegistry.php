@@ -24,7 +24,7 @@ class ArchitectUiExtensionRegistry
     /**
      * @var array<int, Closure(): mixed>
      */
-    protected array $blueprintsTableCollapsibleContent = [];
+    protected array $blueprintsTableRecordActions = [];
 
     public function registerTab(Closure $factory): static
     {
@@ -47,9 +47,9 @@ class ArchitectUiExtensionRegistry
         return $this;
     }
 
-    public function registerBlueprintsTableCollapsibleContent(Closure $factory): static
+    public function registerBlueprintsTableRecordActions(Closure $factory): static
     {
-        $this->blueprintsTableCollapsibleContent[] = $factory;
+        $this->blueprintsTableRecordActions[] = $factory;
 
         return $this;
     }
@@ -81,9 +81,9 @@ class ArchitectUiExtensionRegistry
     /**
      * @return array<int, mixed>
      */
-    public function blueprintsTableCollapsibleContent(): array
+    public function blueprintsTableRecordActions(): array
     {
-        return $this->resolveFactories($this->blueprintsTableCollapsibleContent);
+        return $this->resolveFactories($this->blueprintsTableRecordActions);
     }
 
     /**
@@ -111,7 +111,7 @@ class ArchitectUiExtensionRegistry
         $this->tabs = [];
         $this->createEditExtensions = [];
         $this->existingResourcesExtensions = [];
-        $this->blueprintsTableCollapsibleContent = [];
+        $this->blueprintsTableRecordActions = [];
 
         return $this;
     }

@@ -258,4 +258,3 @@ function migrateResourceFunctionalityTestMigration(string $path): void
         '--realpath' => true,
     ]);
 }
-

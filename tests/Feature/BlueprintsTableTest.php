@@ -2,7 +2,7 @@
 
 namespace Lartisan\Architect\Tests\Feature;
 
-use Filament\Tables\Columns\TextColumn;
+use Filament\Actions\Action;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -319,16 +319,14 @@ it('redirects to the panel root after deleting a blueprint', function () {
     expect(Blueprint::find($blueprint->id))->toBeNull();
 });
 
-it('mounts registered collapsible row content in the blueprints table', function () {
+it('mounts registered record actions in the blueprints table', function () {
     app(ArchitectUiExtensionRegistry::class)
-        ->registerBlueprintsTableCollapsibleContent(fn (): TextColumn => TextColumn::make('revision_history'));
+        ->registerBlueprintsTableRecordActions(fn (): Action => Action::make('revision_history'));
 
     $component = app(BlueprintsTable::class);
     $table = $component->table(Table::make($component));
 
-    expect($table->getCollapsibleColumnsLayout())->not->toBeNull()
-        ->and($table->getCollapsibleColumnsLayout()?->isCollapsed())->toBeTrue()
-        ->and($table->getColumn('revision_history'))->toBeInstanceOf(TextColumn::class);
+    expect($table->getAction('revision_history'))->toBeInstanceOf(Action::class);
 });
 
 it('can delete only the stored blueprint snapshot without deleting generated artifacts', function () {
@@ -411,4 +409,3 @@ function migrateBlueprintsTableTestMigration(string $path): void
         '--realpath' => true,
     ]);
 }
-

@@ -523,4 +523,3 @@ use Illuminate\\Database\\Eloquent\\Model;
 class {$modelName} extends Model {}
 PHP);
 }
-

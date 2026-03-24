@@ -177,4 +177,3 @@ function modelGeneratorTestModelsRoot(): string
 {
     return dirname(GenerationPathResolver::model('Project'));
 }
-
