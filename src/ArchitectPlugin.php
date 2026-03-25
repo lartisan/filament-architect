@@ -2,11 +2,15 @@
 
 namespace Lartisan\Architect;
 
+use Composer\InstalledVersions;
+use Filament\Actions\Action as FilamentAction;
 use Filament\Contracts\Plugin;
 use Filament\Panel;
 use Filament\Support\Facades\FilamentView;
 use Filament\View\PanelsRenderHook;
 use Illuminate\Support\Facades\Blade;
+use Lartisan\Architect\Actions\ArchitectAction;
+use Lartisan\Architect\Livewire\ArchitectWizard;
 use Lartisan\Architect\Support\ArchitectBlockRegistry;
 use Lartisan\Architect\Support\ArchitectCapabilityRegistry;
 use Lartisan\Architect\Support\ArchitectUiExtensionRegistry;
@@ -92,6 +96,7 @@ class ArchitectPlugin implements Plugin
 
         $this->registerArchitectTrigger();
         $this->registerArchitectModalHost();
+        $this->registerArchitectActionRenderHooks();
     }
 
     protected function registerArchitectTrigger(): void
@@ -113,6 +118,29 @@ class ArchitectPlugin implements Plugin
         FilamentView::registerRenderHook(
             PanelsRenderHook::BODY_END,
             fn (): string => Blade::render("@livewire('architect-wizard')"),
+        );
+    }
+
+    protected function registerArchitectActionRenderHooks(): void
+    {
+        if (! class_exists(\Filament\Actions\View\ActionsRenderHook::class)) {
+            return;
+        }
+
+        FilamentView::registerRenderHook(
+            \Filament\Actions\View\ActionsRenderHook::MODAL_SCHEMA_AFTER,
+            function (array $data): string {
+                $action = $data['action'] ?? null;
+
+                if ((! $action instanceof FilamentAction) || ($action->getName() !== ArchitectAction::getDefaultName())) {
+                    return '';
+                }
+
+                return view('architect::components.plugin-version-badge', [
+                    'version' => static::version(),
+                ])->render();
+            },
+            ArchitectWizard::class,
         );
     }
 
@@ -147,5 +175,10 @@ class ArchitectPlugin implements Plugin
     public static function generationHooks(): BlueprintGenerationHookRegistry
     {
         return app(BlueprintGenerationHookRegistry::class);
+    }
+
+    public static function version(): string
+    {
+        return InstalledVersions::getPrettyVersion('lartisan/filament-architect') ?? 'dev';
     }
 }

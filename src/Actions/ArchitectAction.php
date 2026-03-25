@@ -54,6 +54,7 @@ class ArchitectAction extends Action
         parent::setup();
 
         $this->label('Architect')
+            ->modalHeading('Architect')
             ->modalDescription(__('Generate Eloquent model, migration, factory and seeder along with the associated Filament resource.'))
             ->modalIcon(Heroicon::Square3Stack3d)
             ->icon(Heroicon::Square3Stack3d)
@@ -66,7 +67,7 @@ class ArchitectAction extends Action
                         'x-on:activate-first-tab.window' => "\$data.tab = '".self::CREATE_EDIT_TAB_KEY."';",
                     ]),
             ])
-            ->action(function (array $data, Action $action) {
+            ->action(function (array $data) {
                 try {
                     $blueprintData = BlueprintData::fromArray($data, shouldValidate: true);
                     ['plan' => $plan, 'shouldRunMigration' => $shouldRunMigration] = app(BlueprintGenerationService::class)->generate($blueprintData);
