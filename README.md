@@ -3,6 +3,16 @@
 
 A [Filament](https://filamentphp.com) plugin for scaffolding and evolving Laravel resources from inside your Filament panel.
 
+> [!IMPORTANT]
+> `v1.0.0` introduces new database migrations for Filament Architect.
+> If you are upgrading from `v0.1.5` or earlier, publish the latest package migrations and run:
+>
+> ```bash
+> php artisan migrate
+> ```
+>
+> See [`UPGRADE.md`](UPGRADE.md) for the full upgrade steps.
+
 It gives you a wizard for defining a table schema, then generates and updates the matching:
 
 - Eloquent model
@@ -16,6 +26,8 @@ The current implementation is built for iterative work, not just first-time scaf
 ## Quick Start
 
 > Prerequisite: you already have a Laravel app with a Filament panel set up.
+
+> Upgrading an existing install? Review [`UPGRADE.md`](UPGRADE.md) before opening Architect in your panel.
 
 1. Install the package.
 2. Run the Architect installer.
@@ -276,32 +288,55 @@ Until pricing and packaging are finalized, it is safest to describe this as:
 
 ## Installation
 
-Install the package with Composer:
+For a new installation:
 
 ```bash
 composer require lartisan/filament-architect
+php artisan architect:install
+php artisan migrate
 ```
 
-Run the installer:
+Then register the plugin in your Filament panel provider:
+
+```php
+<?php
+
+namespace App\Providers\Filament;
+
+use Filament\Panel;
+use Filament\PanelProvider;
+use Lartisan\Architect\ArchitectPlugin;
+
+class AdminPanelProvider extends PanelProvider
+{
+    public function panel(Panel $panel): Panel
+    {
+        return $panel
+            ->plugins([
+                ArchitectPlugin::make(),
+            ]);
+    }
+}
+```
+
+If you are upgrading from `v0.1.5` or an earlier release, publish the latest package migrations before running `php artisan migrate`:
 
 ```bash
-php artisan architect:install
+php artisan vendor:publish --tag=architect-migrations
+php artisan migrate
 ```
 
-The install command currently:
+The `architect:install` command currently:
 - runs `filament:assets`
 - publishes the package migrations
 - adds `@php artisan filament:assets` to `composer.json` `post-autoload-dump` if needed
-
-Then run migrations:
-
-```bash
-php artisan migrate
-```
+- displays an explicit reminder that `v1.0.0` requires `php artisan migrate`
 
 This creates the Architect tables used for:
 - saved blueprints
 - blueprint revision history
+
+For an upgrade-specific walkthrough, see [`UPGRADE.md`](UPGRADE.md).
 
 ---
 

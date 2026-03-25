@@ -23,6 +23,10 @@ class InstallCommand extends Command
             '--tag' => 'architect-migrations',
         ]);
 
+        $this->newLine();
+        $this->warn('IMPORTANT: Filament Architect v1.0.0 requires database migrations.');
+        $this->line('Run: <info>php artisan migrate</info>');
+
         $this->registerUpgradeHook();
 
         $this->info('Filament Architect installed successfully!');

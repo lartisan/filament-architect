@@ -10,6 +10,7 @@ use Filament\Forms\Contracts\HasForms;
 use Filament\Notifications\Notification;
 use Lartisan\Architect\Actions\ArchitectAction;
 use Lartisan\Architect\Models\Blueprint as ArchitectBlueprint;
+use Lartisan\Architect\Support\ArchitectMigrationStatus;
 use Lartisan\Architect\Support\BlueprintDeletionService;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -55,12 +56,20 @@ class ArchitectWizard extends Component implements HasActions, HasForms
             return;
         }
 
+        if (! $this->ensureMigrationsAreReady()) {
+            return;
+        }
+
         $this->mountAction('openArchitect');
     }
 
     #[On('load-blueprint')]
     public function loadBlueprint(int $id): void
     {
+        if (! $this->ensureMigrationsAreReady()) {
+            return;
+        }
+
         $blueprint = ArchitectBlueprint::find($id);
 
         if ($blueprint) {
@@ -79,6 +88,10 @@ class ArchitectWizard extends Component implements HasActions, HasForms
     #[On('load-blueprint-data')]
     public function loadBlueprintData(array $data): void
     {
+        if (! $this->ensureMigrationsAreReady()) {
+            return;
+        }
+
         $this->openArchitect();
         $this->getMountedActionSchema()->fill($data);
 
@@ -90,6 +103,10 @@ class ArchitectWizard extends Component implements HasActions, HasForms
 
     public function deleteBlueprint(int $id): void
     {
+        if (! $this->ensureMigrationsAreReady()) {
+            return;
+        }
+
         $blueprint = ArchitectBlueprint::find($id);
 
         if ($blueprint === null) {
@@ -101,6 +118,27 @@ class ArchitectWizard extends Component implements HasActions, HasForms
         Notification::make()
             ->title('Blueprint deleted!')
             ->success()
+            ->send();
+    }
+
+    protected function ensureMigrationsAreReady(): bool
+    {
+        if (app(ArchitectMigrationStatus::class)->isReady()) {
+            return true;
+        }
+
+        $this->notifyMissingMigrations();
+
+        return false;
+    }
+
+    protected function notifyMissingMigrations(): void
+    {
+        Notification::make()
+            ->title(__('Architect migrations are missing'))
+            ->body(__('Run `php artisan architect:install` (recommended), then `php artisan migrate` before using Filament Architect. If you are upgrading manually, publish the `architect-migrations` tag and run `php artisan migrate`.'))
+            ->warning()
+            ->persistent()
             ->send();
     }
 }

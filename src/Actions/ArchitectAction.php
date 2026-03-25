@@ -30,7 +30,7 @@ use Lartisan\Architect\Generators\MigrationGenerator;
 use Lartisan\Architect\Generators\ModelGenerator;
 use Lartisan\Architect\Generators\SeederGenerator;
 use Lartisan\Architect\Livewire\BlueprintsTable;
-use Lartisan\Architect\Models\BlueprintRevision;
+use Lartisan\Architect\Support\ArchitectMigrationStatus;
 use Lartisan\Architect\Support\ArchitectUiExtensionRegistry;
 use Lartisan\Architect\Support\BlueprintGenerationService;
 use Lartisan\Architect\Support\RegenerationPlanner;
@@ -138,7 +138,7 @@ class ArchitectAction extends Action
     {
         return Tabs\Tab::make(__('Blueprints'))
             ->key(self::EXISTING_RESOURCES_TAB_KEY)
-            ->visible(fn () => BlueprintRevision::query()->exists())
+            ->visible(fn () => app(ArchitectMigrationStatus::class)->hasStoredRevisions())
             ->icon(Heroicon::ListBullet)
             ->id('tab-list')
             ->schema([
