@@ -1,4 +1,6 @@
 /.github
 /.idea
-/vendor
+/.phpunit.cache/
+/vendor/
+.phpunit.result.cache
 ROADMAP.md
