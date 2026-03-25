@@ -49,37 +49,6 @@ use Lartisan\Architect\ArchitectPlugin;
 ])
 ```
 
-## Screenshots / GIFs
-
-If you want to showcase the workflow on GitHub or Packagist, a good convention is to keep README media in `docs/images/` and reference it with relative paths.
-
-Suggested media blocks:
-
-- Wizard overview
-- Review step with code previews
-- Existing blueprints table
-- Merge/regeneration flow GIF
-
-Example structure:
-
-```text
-docs/
-  images/
-    wizard-overview.png
-    review-previews.png
-    blueprints-table.png
-    regeneration-flow.gif
-```
-
-Example embeds:
-
-```markdown
-![Wizard overview](docs/images/wizard-overview.png)
-![Review step previews](docs/images/review-previews.png)
-![Existing blueprints table](docs/images/blueprints-table.png)
-![Regeneration flow](docs/images/regeneration-flow.gif)
-```
-
 ---
 
 ## Highlights
