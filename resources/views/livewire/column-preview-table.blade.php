@@ -1,4 +1,0 @@
-<div>
-    {{ $this->table }}
-</div>
-
