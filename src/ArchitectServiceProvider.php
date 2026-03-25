@@ -11,6 +11,7 @@ use Lartisan\Architect\Commands\InstallCommand;
 use Lartisan\Architect\Contracts\ArchitectCapabilityResolver;
 use Lartisan\Architect\Livewire\ArchitectTrigger;
 use Lartisan\Architect\Livewire\ArchitectWizard;
+use Lartisan\Architect\Livewire\BlueprintsTable;
 use Lartisan\Architect\Support\ArchitectBlockRegistry;
 use Lartisan\Architect\Support\ArchitectCapabilityRegistry;
 use Lartisan\Architect\Support\ArchitectUiExtensionRegistry;
@@ -54,6 +55,7 @@ class ArchitectServiceProvider extends PackageServiceProvider
 
         Livewire::component('architect-trigger', ArchitectTrigger::class);
         Livewire::component('architect-wizard', ArchitectWizard::class);
+        Livewire::component('blueprints-table', BlueprintsTable::class);
 
         if (class_exists(FilamentAsset::class)) {
             FilamentAsset::register(
