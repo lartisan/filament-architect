@@ -1,7 +1,18 @@
 # Filament Architect
-![Filament Architect](docs/images/ArchitectPRO_light.png)
 
-A [Filament](https://filamentphp.com) plugin for scaffolding and evolving Laravel resources from inside your Filament panel.
+<div align="center">
+
+A powerful [Filament](https://filamentphp.com) plugin that enables rapid scaffolding and generation of Eloquent models, migrations, factories, seeders, and Filament resources through an intuitive wizard interface.
+
+<div align="center" class="filament-hidden">
+
+[![Latest Version on Packagist](https://img.shields.io/packagist/v/lartisan/filament-architect.svg)](https://packagist.org/packages/lartisan/filament-architect)
+[![GitHub Tests](https://img.shields.io/github/actions/workflow/status/lartisan/filament-architect/tests.yml?label=Tests)](https://github.com/lartisan/filament-architect/actions)
+[![Total Downloads](https://img.shields.io/packagist/dt/lartisan/filament-architect.svg)](https://packagist.org/packages/lartisan/filament-architect)
+[![License](https://img.shields.io/packagist/l/lartisan/filament-architect.svg)](https://packagist.org/packages/lartisan/filament-architect)
+
+</div>
+</div>
 
 > [!IMPORTANT]
 > `v1.0.0` introduces new database migrations for Filament Architect.
