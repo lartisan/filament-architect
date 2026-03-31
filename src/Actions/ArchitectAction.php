@@ -59,6 +59,12 @@ class ArchitectAction extends Action
                                     ...self::eloquentStep(),
                                     ...self::reviewStep(),
                                 ])
+                                    ->extraAlpineAttributes([
+                                        // Prevent Livewire morphdom from overwriting Alpine.js-managed
+                                        // visibility state (x-cloak / fi-hidden) on the wizard footer
+                                        // when any live() field triggers a component re-render.
+                                        'x-init' => '$nextTick(() => { const f = $el.querySelector(\'.fi-sc-wizard-footer\'); if (f) f.__livewire_ignore = true; })',
+                                    ])
                                     ->submitAction(
                                         Action::make('submit')
                                             ->label('Save & Generate')
@@ -142,6 +148,7 @@ class ArchitectAction extends Action
             Wizard\Step::make('Database')
                 ->description(__('Table Configuration'))
                 ->icon('heroicon-o-table-cells')
+                ->key('architect-database-step')
                 ->schema([
                     TextInput::make('table_name')
                         ->label(__('Table Name (plural)'))
@@ -248,6 +255,7 @@ class ArchitectAction extends Action
             Wizard\Step::make('Eloquent')
                 ->description(__('Model and associated classes'))
                 ->icon('heroicon-o-cube')
+                ->key('architect-eloquent-step')
                 ->schema([
                     TextInput::make('model_name')
                         ->label(__('Model Name'))
@@ -283,6 +291,7 @@ class ArchitectAction extends Action
         return [
             Wizard\Step::make('Review')
                 ->description(__('Preview of the files'))
+                ->key('architect-review-step')
                 ->schema([
                     Toggle::make('run_migration')
                         ->label(__('Run migration immediately'))
