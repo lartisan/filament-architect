@@ -31,7 +31,12 @@ afterEach(function () {
     }
 
     foreach (File::glob(database_path('migrations/*_projects_table.php')) as $migration) {
-        File::delete($migration);
+        // Guard against accidentally deleting 'migration_projects' files owned by other parallel tests.
+        // The glob pattern `*_projects_table.php` is greedy and would also match
+        // `*_create_migration_projects_table.php` since `*` covers `..._create_migration`.
+        if (! str_contains(basename($migration), 'migration_projects')) {
+            File::delete($migration);
+        }
     }
 });
 
