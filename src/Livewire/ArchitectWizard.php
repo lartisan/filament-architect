@@ -136,7 +136,7 @@ class ArchitectWizard extends Component implements HasActions, HasForms
     {
         Notification::make()
             ->title(__('Architect migrations are missing'))
-            ->body(__('Run `php artisan architect:install` (recommended), then `php artisan migrate` before using Filament Architect. If you are upgrading manually, publish the `architect-migrations` tag and run `php artisan migrate`.'))
+            ->body(__('Run `php artisan architect:upgrade` to publish migrations, migrate, and backfill revisions in one step.'))
             ->warning()
             ->persistent()
             ->send();

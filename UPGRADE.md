@@ -11,10 +11,12 @@ If you are upgrading from `v0.1.5` or any earlier release, you **must** publish 
 1. Update the package to `v1.0.0`.
 2. Publish the latest Architect migrations.
 3. Run your application's database migrations.
+4. Backfill revisions for existing blueprints.
 
 ```bash
 php artisan vendor:publish --tag=architect-migrations
 php artisan migrate
+php artisan architect:upgrade
 ```
 
 If you prefer to use the package installer, you may run:
@@ -22,7 +24,14 @@ If you prefer to use the package installer, you may run:
 ```bash
 php artisan architect:install
 php artisan migrate
+php artisan architect:upgrade
 ```
+
+> **Tip:** Run `php artisan architect:upgrade --dry-run` first to preview which blueprints will be backfilled without writing any changes.
+
+## Why `architect:upgrade` is needed
+
+`v1.0.0` introduces the `architect_blueprint_revisions` table. The **Blueprints** tab reads the most recent revision of each blueprint and will show nothing for records that pre-date this release. Running `architect:upgrade` creates an initial revision (revision 1) for every existing blueprint that has none, using the data already stored in `architect_blueprints`. The revision is tagged with `backfilled_by_upgrade: true` in its metadata so it is easy to identify later.
 
 ## Why this upgrade requires migrations
 

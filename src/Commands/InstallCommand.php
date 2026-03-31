@@ -24,8 +24,13 @@ class InstallCommand extends Command
         ]);
 
         $this->newLine();
-        $this->warn('IMPORTANT: Filament Architect v1.0.0 requires database migrations.');
-        $this->line('Run: <info>php artisan migrate</info>');
+        $this->warn('IMPORTANT: Filament Architect requires database migrations.');
+        $this->newLine();
+        $this->line('  Run <info>php artisan architect:upgrade</info> to migrate and backfill revisions in one step.');
+        $this->newLine();
+        $this->line('  Or manually:');
+        $this->line('    <info>php artisan migrate</info>');
+        $this->line('    <info>php artisan architect:upgrade</info> (to backfill revisions for existing blueprints)');
 
         $this->registerUpgradeHook();
 

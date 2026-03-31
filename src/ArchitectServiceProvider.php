@@ -8,6 +8,7 @@ use Filament\Support\Facades\FilamentAsset;
 use Filament\Support\Facades\FilamentIcon;
 use Illuminate\Support\Facades\Blade;
 use Lartisan\Architect\Commands\InstallCommand;
+use Lartisan\Architect\Commands\UpgradeCommand;
 use Lartisan\Architect\Contracts\ArchitectCapabilityResolver;
 use Lartisan\Architect\Livewire\ArchitectTrigger;
 use Lartisan\Architect\Livewire\ArchitectWizard;
@@ -37,7 +38,7 @@ class ArchitectServiceProvider extends PackageServiceProvider
             ->hasMigration('create_architect_blueprint_revisions_table')
             ->hasMigration('update_architect_blueprint_revisions_table_add_snapshot_metadata')
             ->hasAssets()
-            ->hasCommands(InstallCommand::class);
+            ->hasCommands(InstallCommand::class, UpgradeCommand::class);
     }
 
     public function packageRegistered(): void
@@ -112,6 +113,7 @@ class ArchitectServiceProvider extends PackageServiceProvider
     {
         return [
             InstallCommand::class,
+            UpgradeCommand::class,
         ];
     }
 
