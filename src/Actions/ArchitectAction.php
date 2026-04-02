@@ -217,7 +217,7 @@ class ArchitectAction extends Action
                                             'dateTime' => 'DateTime',
                                             'foreignId' => 'Foreign ID (Relation)',
                                             'foreignUuid' => 'Foreign UUID (Relation)',
-                                            'foreignUld' => 'Foreign ULID (Relation)',
+                                            'foreignUlid' => 'Foreign ULID (Relation)',
                                         ])
                                         ->required()
                                         ->live(),
