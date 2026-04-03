@@ -49,6 +49,121 @@ class FilamentResourceUpdater
         return $this->normalizeMergedFormatting($content);
     }
 
+    /**
+     * Merge a v4 thin resource file.
+     *
+     * Only syncs imports and adds getEloquentQuery() if missing.
+     * Component arrays live in separate Form/Infolist/Table files
+     * and are merged by mergeSchemaFile() / mergeTableFile().
+     */
+    public function mergeThinResource(string $existingContent, string $generatedContent): string
+    {
+        $parser = (new ParserFactory)->createForNewestSupportedVersion();
+
+        try {
+            $existingStatements = $parser->parse($existingContent) ?? [];
+            $existingTokens = $parser->getTokens();
+            $mutableStatements = $parser->parse($existingContent) ?? [];
+            $generatedStatements = $parser->parse($generatedContent) ?? [];
+        } catch (Error $exception) {
+            throw new \RuntimeException('Unable to parse the existing resource for merge: '.$exception->getMessage(), previous: $exception);
+        }
+
+        $existingNamespace = $this->findNamespace($mutableStatements);
+        $generatedNamespace = $this->findNamespace($generatedStatements);
+        $existingClass = $this->findClass($existingNamespace?->stmts ?? $mutableStatements);
+        $generatedClass = $this->findClass($generatedNamespace?->stmts ?? $generatedStatements);
+
+        if (! $existingClass instanceof Stmt\Class_ || ! $generatedClass instanceof Stmt\Class_) {
+            throw new \RuntimeException('Unable to find a resource class to merge.');
+        }
+
+        $this->mergeImports($existingNamespace, $mutableStatements, $generatedNamespace?->stmts ?? $generatedStatements);
+        $this->mergeMethodIfMissing($existingClass, $generatedClass, 'getEloquentQuery');
+
+        $content = (new Standard)->printFormatPreserving($mutableStatements, $existingStatements, $existingTokens);
+
+        return $this->normalizeMergedFormatting($content);
+    }
+
+    /**
+     * Merge a v4 Schema file (UserForm or UserInfolist).
+     *
+     * Targets the configure() method and merges ->components([]).
+     *
+     * @param  string  $context  'form' or 'infolist' — determines which component classes are managed
+     */
+    public function mergeSchemaFile(string $existingContent, string $generatedContent, string $context = 'form'): string
+    {
+        $parser = (new ParserFactory)->createForNewestSupportedVersion();
+
+        try {
+            $existingStatements = $parser->parse($existingContent) ?? [];
+            $existingTokens = $parser->getTokens();
+            $mutableStatements = $parser->parse($existingContent) ?? [];
+            $generatedStatements = $parser->parse($generatedContent) ?? [];
+        } catch (Error $exception) {
+            throw new \RuntimeException('Unable to parse the existing schema file for merge: '.$exception->getMessage(), previous: $exception);
+        }
+
+        $existingNamespace = $this->findNamespace($mutableStatements);
+        $generatedNamespace = $this->findNamespace($generatedStatements);
+        $existingClass = $this->findClass($existingNamespace?->stmts ?? $mutableStatements);
+        $generatedClass = $this->findClass($generatedNamespace?->stmts ?? $generatedStatements);
+
+        if (! $existingClass instanceof Stmt\Class_ || ! $generatedClass instanceof Stmt\Class_) {
+            throw new \RuntimeException('Unable to find a schema class to merge.');
+        }
+
+        $managedClasses = $context === 'infolist'
+            ? ['IconEntry', 'TextEntry', 'KeyValueEntry']
+            : ['Select', 'Toggle', 'DatePicker', 'DateTimePicker', 'Textarea', 'KeyValue', 'TextInput'];
+
+        $this->mergeImports($existingNamespace, $mutableStatements, $generatedNamespace?->stmts ?? $generatedStatements);
+        $this->mergeComponentsMethod($existingClass, $generatedClass, 'configure', 'components', $managedClasses);
+
+        $content = (new Standard)->printFormatPreserving($mutableStatements, $existingStatements, $existingTokens);
+
+        return $this->normalizeMergedFormatting($content);
+    }
+
+    /**
+     * Merge a v4 Table file (UsersTable).
+     *
+     * Targets the configure() method and merges ->columns(), ->filters() and bulk actions.
+     */
+    public function mergeTableFile(string $existingContent, string $generatedContent): string
+    {
+        $parser = (new ParserFactory)->createForNewestSupportedVersion();
+
+        try {
+            $existingStatements = $parser->parse($existingContent) ?? [];
+            $existingTokens = $parser->getTokens();
+            $mutableStatements = $parser->parse($existingContent) ?? [];
+            $generatedStatements = $parser->parse($generatedContent) ?? [];
+        } catch (Error $exception) {
+            throw new \RuntimeException('Unable to parse the existing table file for merge: '.$exception->getMessage(), previous: $exception);
+        }
+
+        $existingNamespace = $this->findNamespace($mutableStatements);
+        $generatedNamespace = $this->findNamespace($generatedStatements);
+        $existingClass = $this->findClass($existingNamespace?->stmts ?? $mutableStatements);
+        $generatedClass = $this->findClass($generatedNamespace?->stmts ?? $generatedStatements);
+
+        if (! $existingClass instanceof Stmt\Class_ || ! $generatedClass instanceof Stmt\Class_) {
+            throw new \RuntimeException('Unable to find a table class to merge.');
+        }
+
+        $this->mergeImports($existingNamespace, $mutableStatements, $generatedNamespace?->stmts ?? $generatedStatements);
+        $this->mergeComponentsMethod($existingClass, $generatedClass, 'configure', 'columns', ['TextColumn', 'IconColumn']);
+        $this->mergeComponentsMethod($existingClass, $generatedClass, 'configure', 'filters', ['TrashedFilter']);
+        $this->mergeBulkActions($existingClass, $generatedClass, 'configure');
+
+        $content = (new Standard)->printFormatPreserving($mutableStatements, $existingStatements, $existingTokens);
+
+        return $this->normalizeMergedFormatting($content);
+    }
+
     private function findNamespace(array $statements): ?Stmt\Namespace_
     {
         return (new NodeFinder)->findFirstInstanceOf($statements, Stmt\Namespace_::class);
@@ -91,7 +206,7 @@ class FilamentResourceUpdater
         $statements = $targetStatements;
     }
 
-    private function mergeComponentsMethod(Stmt\Class_ $existingClass, Stmt\Class_ $generatedClass, string $methodName, string $callName): void
+    private function mergeComponentsMethod(Stmt\Class_ $existingClass, Stmt\Class_ $generatedClass, string $methodName, string $callName, ?array $managedClasses = null): void
     {
         $existingMethod = $existingClass->getMethod($methodName);
         $generatedMethod = $generatedClass->getMethod($methodName);
@@ -116,14 +231,14 @@ class FilamentResourceUpdater
         $existingArray->items = $this->mergeArrayItemsInGeneratedOrder(
             $existingArray,
             $generatedArray,
-            $this->managedClassNamesFor($methodName, $callName),
+            $managedClasses ?? $this->managedClassNamesFor($methodName, $callName),
         );
     }
 
-    private function mergeBulkActions(Stmt\Class_ $existingClass, Stmt\Class_ $generatedClass): void
+    private function mergeBulkActions(Stmt\Class_ $existingClass, Stmt\Class_ $generatedClass, string $methodName = 'table'): void
     {
-        $existingMethod = $existingClass->getMethod('table');
-        $generatedMethod = $generatedClass->getMethod('table');
+        $existingMethod = $existingClass->getMethod($methodName);
+        $generatedMethod = $generatedClass->getMethod($methodName);
 
         if (! $generatedMethod instanceof Stmt\ClassMethod) {
             return;

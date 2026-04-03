@@ -33,21 +33,142 @@ readonly class FilamentResourceGenerator extends AbstractGenerator
         $modelName = $blueprint->modelName;
         $modelPlural = Str::plural($modelName);
 
+        $baseNamespace = (string) config('architect.resources_namespace', 'App\\Filament\\Resources');
+        $resourceNamespace = GenerationPathResolver::isFilamentV4()
+            ? GenerationPathResolver::resourceNamespace($modelName)
+            : $baseNamespace;
+
         return $this->replacePlaceholders($stub, [
-            '{{ namespace }}' => config('architect.resources_namespace', 'App\\Filament\\Resources'),
+            // Namespace placeholders — v3 uses {{ namespace }}, v4 uses {{ resource_namespace }}
+            '{{ namespace }}' => $baseNamespace,
+            '{{ resource_namespace }}' => $resourceNamespace,
+            '{{ schemas_namespace }}' => GenerationPathResolver::isFilamentV4()
+                ? GenerationPathResolver::resourceSchemasNamespace($modelName)
+                : $baseNamespace,
+            '{{ tables_namespace }}' => GenerationPathResolver::isFilamentV4()
+                ? GenerationPathResolver::resourceTablesNamespace($modelName)
+                : $baseNamespace,
+            // Model / resource identifiers
             '{{ model_namespace }}' => GenerationPathResolver::modelsNamespace(),
             '{{ model_class }}' => $modelName,
             '{{ model_plural_class }}' => $modelPlural,
             '{{ resource_class }}' => "{$modelName}Resource",
+            // Inline schema content — used by v3 resource stub; harmlessly ignored by v4 thin resource stub
             '{{ form_schema }}' => $this->generateFormSchema($blueprint),
             '{{ table_columns }}' => $this->generateTableColumns($blueprint),
             '{{ infolist_schema }}' => $this->generateInfolistSchema($blueprint),
-            '{{ pages_namespace }}' => config('architect.resources_namespace', 'App\\Filament\\Resources')."\\{$modelName}Resource\\Pages",
-            // Soft Deletes
-            '{{ soft_deletes_import }}' => $blueprint->softDeletes ? "use Illuminate\Database\Eloquent\Builder;\nuse Illuminate\Database\Eloquent\SoftDeletingScope;" : '',
+            // Soft deletes
+            '{{ soft_deletes_import }}' => $blueprint->softDeletes
+                ? "use Illuminate\Database\Eloquent\Builder;\nuse Illuminate\Database\Eloquent\SoftDeletingScope;"
+                : '',
             '{{ soft_deletes_filter }}' => $blueprint->softDeletes ? "Tables\Filters\TrashedFilter::make()," : '//',
-            '{{ soft_deletes_bulk_actions }}' => $blueprint->softDeletes ? "\Filament\Actions\ForceDeleteBulkAction::make(),\n                    \Filament\Actions\RestoreBulkAction::make()," : '',
+            '{{ soft_deletes_bulk_actions }}' => $blueprint->softDeletes
+                ? "\Filament\Actions\ForceDeleteBulkAction::make(),\n                    \Filament\Actions\RestoreBulkAction::make(),"
+                : '',
             '{{ eloquent_query }}' => $this->generateEloquentQuery($blueprint),
+        ]);
+    }
+
+    // -------------------------------------------------------------------------
+    // Public preview API (used by ArchitectAction::reviewStep sections)
+    // -------------------------------------------------------------------------
+
+    /**
+     * For v3: returns the single monolithic resource file content.
+     * For v4: returns all four generated files concatenated with file-path headers.
+     */
+    public function preview(BlueprintData $blueprint): string
+    {
+        if (! GenerationPathResolver::isFilamentV4()) {
+            return $this->getContent($blueprint);
+        }
+
+        $modelName = $blueprint->modelName;
+        $modelPlural = Str::pluralStudly($modelName);
+
+        $files = [
+            "{$modelName}Resource.php" => $this->getContent($blueprint),
+            "Schemas/{$modelName}Form.php" => $this->getFormContent($blueprint),
+            "Schemas/{$modelName}Infolist.php" => $this->getInfolistContent($blueprint),
+            "Tables/{$modelPlural}Table.php" => $this->getTableContent($blueprint),
+        ];
+
+        return collect($files)
+            ->map(fn (string $content, string $path) => "// ── {$path} ──\n\n{$content}")
+            ->implode("\n\n\n");
+    }
+
+    public function previewResource(BlueprintData $blueprint): string
+    {
+        return $this->getContent($blueprint);
+    }
+
+    public function previewForm(BlueprintData $blueprint): string
+    {
+        return $this->getFormContent($blueprint);
+    }
+
+    public function previewInfolist(BlueprintData $blueprint): string
+    {
+        return $this->getInfolistContent($blueprint);
+    }
+
+    public function previewTable(BlueprintData $blueprint): string
+    {
+        return $this->getTableContent($blueprint);
+    }
+
+    // -------------------------------------------------------------------------
+    // Protected content builders (protected for testability & extensibility)
+    // -------------------------------------------------------------------------
+
+    protected function getFormContent(BlueprintData $blueprint): string
+    {
+        $modelName = $blueprint->modelName;
+        $baseNamespace = (string) config('architect.resources_namespace', 'App\\Filament\\Resources');
+
+        return $this->replacePlaceholders($this->getStub('filament-schemas-form'), [
+            '{{ schemas_namespace }}' => GenerationPathResolver::isFilamentV4()
+                ? GenerationPathResolver::resourceSchemasNamespace($modelName)
+                : $baseNamespace,
+            '{{ model_class }}' => $modelName,
+            '{{ form_schema }}' => $this->generateFormSchema($blueprint),
+        ]);
+    }
+
+    protected function getInfolistContent(BlueprintData $blueprint): string
+    {
+        $modelName = $blueprint->modelName;
+        $baseNamespace = (string) config('architect.resources_namespace', 'App\\Filament\\Resources');
+
+        return $this->replacePlaceholders($this->getStub('filament-schemas-infolist'), [
+            '{{ schemas_namespace }}' => GenerationPathResolver::isFilamentV4()
+                ? GenerationPathResolver::resourceSchemasNamespace($modelName)
+                : $baseNamespace,
+            '{{ model_class }}' => $modelName,
+            '{{ infolist_schema }}' => $this->generateInfolistSchema($blueprint),
+        ]);
+    }
+
+    protected function getTableContent(BlueprintData $blueprint): string
+    {
+        $modelName = $blueprint->modelName;
+        $modelPlural = Str::plural($modelName);
+        $baseNamespace = (string) config('architect.resources_namespace', 'App\\Filament\\Resources');
+
+        return $this->replacePlaceholders($this->getStub('filament-tables-table'), [
+            '{{ tables_namespace }}' => GenerationPathResolver::isFilamentV4()
+                ? GenerationPathResolver::resourceTablesNamespace($modelName)
+                : $baseNamespace,
+            '{{ model_class }}' => $modelName,
+            '{{ model_plural_class }}' => $modelPlural,
+            '{{ table_columns }}' => $this->generateTableColumns($blueprint),
+            // Bulk actions use FQCN (\Filament\Actions\...) so no extra imports needed
+            '{{ soft_deletes_import }}' => '',
+            '{{ soft_deletes_filter }}' => $blueprint->softDeletes ? "Tables\Filters\TrashedFilter::make()," : '//',
+            '{{ soft_deletes_bulk_actions }}' => $blueprint->softDeletes
+                ? "\Filament\Actions\ForceDeleteBulkAction::make(),\n                    \Filament\Actions\RestoreBulkAction::make(),"
+                : '',
         ]);
     }
 
@@ -172,7 +293,8 @@ PHP;
 
     public function generate(BlueprintData $blueprint): string
     {
-        $resourceName = "{$blueprint->modelName}Resource";
+        $modelName = $blueprint->modelName;
+        $resourceName = "{$modelName}Resource";
         $resourceDir = GenerationPathResolver::resourceDirectory($resourceName);
         $resourcePath = GenerationPathResolver::resource($resourceName);
 
@@ -182,11 +304,28 @@ PHP;
             File::makeDirectory("{$resourceDir}/Pages", 0755, true);
         }
 
+        if (GenerationPathResolver::isFilamentV4()) {
+            if (! File::isDirectory("{$resourceDir}/Schemas")) {
+                File::makeDirectory("{$resourceDir}/Schemas", 0755, true);
+            }
+
+            if (! File::isDirectory("{$resourceDir}/Tables")) {
+                File::makeDirectory("{$resourceDir}/Tables", 0755, true);
+            }
+        }
+
         if (File::exists($resourcePath) && $blueprint->generationMode->shouldMergeExistingArtifacts()) {
-            $updatedContent = app(FilamentResourceUpdater::class)->merge(File::get($resourcePath), $this->getContent($blueprint));
+            $updater = app(FilamentResourceUpdater::class);
+            $updatedContent = GenerationPathResolver::isFilamentV4()
+                ? $updater->mergeThinResource(File::get($resourcePath), $this->getContent($blueprint))
+                : $updater->merge(File::get($resourcePath), $this->getContent($blueprint));
             $this->writeFormattedFile($resourcePath, $updatedContent);
         } elseif (! File::exists($resourcePath) || $blueprint->generationMode === GenerationMode::Replace) {
             $this->writeFormattedFile($resourcePath, $this->getContent($blueprint));
+        }
+
+        if (GenerationPathResolver::isFilamentV4()) {
+            $this->generateSeparateSchemaFiles($blueprint);
         }
 
         $this->generateResourcePages($blueprint, $resourceDir);
@@ -194,12 +333,53 @@ PHP;
         return $resourcePath;
     }
 
+    /**
+     * Write (or merge) the Form, Infolist and Table files for the v4 domain structure.
+     */
+    protected function generateSeparateSchemaFiles(BlueprintData $blueprint): void
+    {
+        $modelName = $blueprint->modelName;
+        $updater = app(FilamentResourceUpdater::class);
+
+        $artifacts = [
+            [
+                'path' => GenerationPathResolver::resourceSchemaFile($modelName, 'Form'),
+                'content' => fn () => $this->getFormContent($blueprint),
+                'merge' => fn (string $existing, string $generated) => $updater->mergeSchemaFile($existing, $generated, 'form'),
+            ],
+            [
+                'path' => GenerationPathResolver::resourceSchemaFile($modelName, 'Infolist'),
+                'content' => fn () => $this->getInfolistContent($blueprint),
+                'merge' => fn (string $existing, string $generated) => $updater->mergeSchemaFile($existing, $generated, 'infolist'),
+            ],
+            [
+                'path' => GenerationPathResolver::resourceTableFile($modelName),
+                'content' => fn () => $this->getTableContent($blueprint),
+                'merge' => fn (string $existing, string $generated) => $updater->mergeTableFile($existing, $generated),
+            ],
+        ];
+
+        foreach ($artifacts as $artifact) {
+            $path = $artifact['path'];
+
+            if (File::exists($path) && $blueprint->generationMode->shouldMergeExistingArtifacts()) {
+                $updatedContent = ($artifact['merge'])(File::get($path), ($artifact['content'])());
+                $this->writeFormattedFile($path, $updatedContent);
+            } elseif (! File::exists($path) || $blueprint->generationMode === GenerationMode::Replace) {
+                $this->writeFormattedFile($path, ($artifact['content'])());
+            }
+        }
+    }
+
     protected function generateResourcePages(BlueprintData $blueprint, string $directory): void
     {
         $modelName = $blueprint->modelName;
         $modelPlural = Str::plural($modelName);
         $resourceClass = "{$modelName}Resource";
-        $namespace = config('architect.resources_namespace', 'App\\Filament\\Resources');
+        $baseNamespace = (string) config('architect.resources_namespace', 'App\\Filament\\Resources');
+        $resourceNamespace = GenerationPathResolver::isFilamentV4()
+            ? GenerationPathResolver::resourceNamespace($modelName)
+            : $baseNamespace;
 
         $pages = [
             'List' => [
@@ -224,7 +404,8 @@ PHP;
             $content = $this->getStub($config['stub']);
 
             $content = $this->replacePlaceholders($content, [
-                '{{ namespace }}' => $namespace,
+                '{{ namespace }}' => $baseNamespace,
+                '{{ resource_namespace }}' => $resourceNamespace,
                 '{{ resource_class }}' => $resourceClass,
                 '{{ model_class }}' => $modelName,
                 '{{ model_plural_class }}' => $modelPlural,

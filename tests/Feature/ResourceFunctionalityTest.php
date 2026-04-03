@@ -117,13 +117,34 @@ it('generates all necessary files for a complete resource', function () {
     expect(File::exists($resourcePath))->toBeTrue();
 
     $resourceContent = File::get($resourcePath);
-    expect($resourceContent)
-        ->toContain('class PostResource extends Resource')
-        ->toContain('Forms\Components\TextInput::make(\'title\')')
-        ->toContain('Forms\Components\Textarea::make(\'content\')')
-        ->toContain('Tables\Columns\TextColumn::make(\'title\')');
+    expect($resourceContent)->toContain('class PostResource extends Resource');
 
-    // Check resource pages
+    // In v4 (domain structure), form/table components are in separate schema files
+    $isV4 = config('architect.filament_version', 'v4') === 'v4';
+
+    if ($isV4) {
+        // v4: check the separate schema/table files
+        $formPath = GenerationPathResolver::resourceSchemaFile('Post', 'Form');
+        $tablePath = GenerationPathResolver::resourceTableFile('Post');
+
+        expect(File::exists($formPath))->toBeTrue()
+            ->and(File::exists($tablePath))->toBeTrue();
+
+        expect(File::get($formPath))
+            ->toContain("Forms\Components\TextInput::make('title')")
+            ->toContain("Forms\Components\Textarea::make('content')");
+
+        expect(File::get($tablePath))
+            ->toContain("Tables\Columns\TextColumn::make('title')");
+    } else {
+        // v3: check the inline content in the resource file
+        expect($resourceContent)
+            ->toContain("Forms\Components\TextInput::make('title')")
+            ->toContain("Forms\Components\Textarea::make('content')")
+            ->toContain("Tables\Columns\TextColumn::make('title')");
+    }
+
+    // Check resource pages (in both v3 and v4)
     $resourceDir = GenerationPathResolver::resourceDirectory('PostResource');
     expect(File::exists("$resourceDir/Pages/ListPosts.php"))->toBeTrue()
         ->and(File::exists("$resourceDir/Pages/CreatePost.php"))->toBeTrue()
@@ -248,7 +269,12 @@ function resourceFunctionalityModelsRoot(): string
 
 function resourceFunctionalityResourcesRoot(): string
 {
-    return dirname(dirname(GenerationPathResolver::resource('PostResource')));
+    // In v4, resource is nested one level deeper (Resources/Posts/PostResource.php)
+    // so we go up three levels to reach the Resources/ parent.
+    // In v3, it is Resources/PostResource.php, so two levels.
+    $resourcePath = GenerationPathResolver::resource('PostResource');
+
+    return dirname(dirname(dirname($resourcePath)));
 }
 
 function migrateResourceFunctionalityTestMigration(string $path): void

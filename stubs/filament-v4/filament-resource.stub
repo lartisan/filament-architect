@@ -1,14 +1,15 @@
 <?php
 
-namespace {{ namespace }};
+namespace {{ resource_namespace }};
 
 use {{ model_namespace }}\{{ model_class }};
-use Filament\Forms;
-use Filament\Schemas\Schema;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Schema;
 use Filament\Tables\Table;
-use {{ namespace }}\{{ resource_class }}\Pages;
+use {{ resource_namespace }}\Pages;
+use {{ schemas_namespace }}\{{ model_class }}Form;
+use {{ schemas_namespace }}\{{ model_class }}Infolist;
+use {{ tables_namespace }}\{{ model_plural_class }}Table;
 {{ soft_deletes_import }}
 
 class {{ resource_class }} extends Resource

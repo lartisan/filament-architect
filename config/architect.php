@@ -112,4 +112,26 @@ return [
     */
     'resources_namespace' => env('ARCHITECT_RESOURCES_NAMESPACE', 'App\\Filament\\Resources'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Filament Resource Structure Version
+    |--------------------------------------------------------------------------
+    |
+    | Controls the folder structure and file layout used when generating
+    | Filament resources. Choose based on your installed Filament version.
+    |
+    | - 'v3': monolithic structure — form, infolist and table are defined
+    |         inline inside a single UserResource.php file; pages live in
+    |         a UserResource/Pages/ sub-folder.
+    |
+    | - 'v4': domain-based structure — each concern is extracted to its own
+    |         class (UserForm, UserInfolist, UsersTable) inside dedicated
+    |         Schemas/ and Tables/ sub-folders; everything lives under a
+    |         per-model domain folder (e.g. Resources/Users/).
+    |
+    | Environment Variable: ARCHITECT_FILAMENT_VERSION
+    |
+    */
+    'filament_version' => env('ARCHITECT_FILAMENT_VERSION', 'v4'),
+
 ];

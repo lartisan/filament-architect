@@ -1,14 +1,16 @@
 <?php
 
-namespace {{ namespace }};
+namespace {{ tables_namespace }};
 
 use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
-use Filament\Tables\Columns\TextColumn;
+use Filament\Tables;
 use Filament\Tables\Table;
+{{ soft_deletes_import }}
 
-class UsersTable
+class {{ model_plural_class }}Table
 {
     public static function configure(Table $table): Table
     {

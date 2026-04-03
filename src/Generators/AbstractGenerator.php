@@ -24,6 +24,13 @@ abstract readonly class AbstractGenerator
 
     protected function getStub(string $name): string
     {
+        $version = config('architect.filament_version', 'v4');
+        $versionedPath = __DIR__."/../../stubs/filament-{$version}/{$name}.stub";
+
+        if (File::exists($versionedPath)) {
+            return File::get($versionedPath);
+        }
+
         return File::get(__DIR__."/../../stubs/{$name}.stub");
     }
 

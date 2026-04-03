@@ -14,6 +14,7 @@ use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Group;
 use Filament\Schemas\Components\Livewire;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
@@ -33,6 +34,7 @@ use Lartisan\Architect\Livewire\BlueprintsTable;
 use Lartisan\Architect\Support\ArchitectMigrationStatus;
 use Lartisan\Architect\Support\ArchitectUiExtensionRegistry;
 use Lartisan\Architect\Support\BlueprintGenerationService;
+use Lartisan\Architect\Support\GenerationPathResolver;
 use Lartisan\Architect\Support\RegenerationPlanner;
 use Lartisan\Architect\ValueObjects\BlueprintData;
 use Lartisan\Architect\ValueObjects\PlannedSchemaOperation;
@@ -464,14 +466,101 @@ class ArchitectAction extends Action
                             Tabs\Tab::make('Resource')
                                 ->icon('heroicon-o-rectangle-group')
                                 ->visible(fn ($get) => $get('gen_resource'))
-                                ->schema([
-                                    TextEntry::make('resource_preview')
-                                        ->state(fn ($get) => FilamentResourceGenerator::make()->preview(BlueprintData::fromArray($get(''))))
-                                        ->formatStateUsing(fn ($state) => view('architect::components.code-preview', ['code' => $state]))
-                                        ->html(),
-                                ]),
+                                ->schema(GenerationPathResolver::isFilamentV4()
+                                    ? self::resourcePreviewSections()
+                                    : self::resourcePreviewSingle()
+                                ),
                         ]),
                 ]),
+        ];
+    }
+
+    /**
+     * v3: single code block — the full monolithic resource.
+     *
+     * @return array<int, TextEntry>
+     */
+    protected static function resourcePreviewSingle(): array
+    {
+        return [
+            TextEntry::make('resource_preview')
+                ->live()
+                ->state(function ($get) {
+                    try {
+                        $data = $get('');
+
+                        if (empty($data['table_name'])) {
+                            return '...';
+                        }
+
+                        return FilamentResourceGenerator::make()->preview(
+                            BlueprintData::fromArray($data, shouldValidate: false)
+                        );
+                    } catch (\Throwable $e) {
+                        return '// '.__('Configuration Error:').' '.$e->getMessage();
+                    }
+                })
+                ->formatStateUsing(fn ($state) => view('architect::components.code-preview', ['code' => $state]))
+                ->html(),
+        ];
+    }
+
+    /**
+     * v4: one collapsible Section per generated file (Resource, Form, Infolist, Table).
+     *
+     * @return array<int, Section>
+     */
+    protected static function resourcePreviewSections(): array
+    {
+        $generator = FilamentResourceGenerator::make();
+
+        /**
+         * Factory: produces a live TextEntry with a guarded state closure.
+         *
+         * @param  callable(BlueprintData): string  $contentResolver
+         */
+        $entry = fn (string $key, callable $contentResolver): TextEntry => TextEntry::make($key)
+            ->live()
+            ->state(function ($get) use ($contentResolver) {
+                try {
+                    $data = $get('');
+
+                    if (empty($data['table_name'])) {
+                        return '...';
+                    }
+
+                    return $contentResolver(BlueprintData::fromArray($data, shouldValidate: false));
+                } catch (\Throwable $e) {
+                    return '// '.__('Configuration Error:').' '.$e->getMessage();
+                }
+            })
+            ->formatStateUsing(fn ($state) => view('architect::components.code-preview', ['code' => $state]))
+            ->html();
+
+        return [
+            // Thin resource — less relevant for review, starts collapsed
+            Section::make(fn ($get) => ($get('model_name') ?: 'Model').'Resource.php')
+                ->icon('heroicon-o-rectangle-group')
+                ->collapsed()
+                ->schema([$entry('resource_preview', fn (BlueprintData $bp) => $generator->previewResource($bp))]),
+
+            // Form — most important for review, starts expanded
+            Section::make(fn ($get) => 'Schemas/'.($get('model_name') ?: 'Model').'Form.php')
+                ->icon('heroicon-o-pencil-square')
+                ->collapsible()
+                ->schema([$entry('resource_form_preview', fn (BlueprintData $bp) => $generator->previewForm($bp))]),
+
+            // Infolist — starts collapsed
+            Section::make(fn ($get) => 'Schemas/'.($get('model_name') ?: 'Model').'Infolist.php')
+                ->icon('heroicon-o-eye')
+                ->collapsed()
+                ->schema([$entry('resource_infolist_preview', fn (BlueprintData $bp) => $generator->previewInfolist($bp))]),
+
+            // Table — important for review, starts expanded
+            Section::make(fn ($get) => 'Tables/'.Str::pluralStudly($get('model_name') ?: 'Model').'Table.php')
+                ->icon('heroicon-o-table-cells')
+                ->collapsible()
+                ->schema([$entry('resource_table_preview', fn (BlueprintData $bp) => $generator->previewTable($bp))]),
         ];
     }
 

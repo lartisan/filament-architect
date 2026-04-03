@@ -118,11 +118,10 @@ Current merge support includes:
   - hides managed markers from preview output
 
 - **Filament Resource**
-  - merges generated `form()`, `table()`, and `infolist()` sections
-  - preserves existing custom page classes
-  - creates missing page classes
+  - **v3 (monolithic):** merges generated `form()`, `table()`, and `infolist()` sections; preserves custom entries; keeps missing page classes
+  - **v4 (domain):** merges each schema/table file independently (`*Form.php`, `*Infolist.php`, `*Table.php`); thin resource only syncs imports and `getEloquentQuery()`
   - removes stale managed fields when columns are removed from the blueprint
-  - keeps clearly custom unmatched items where possible
+  - preserves existing page classes; creates missing ones
 
 ### Revision-aware migration previews and sync generation
 Architect stores blueprint revisions after successful generation.
@@ -153,7 +152,8 @@ It also normalizes merged output for several blueprint types so updated files st
 - multiline factory `definition()` arrays
 
 ### Filament panel integration
-- Works with **Filament 4 and 5**
+- Works with **Filament 3, 4 and 5**
+- Generates resources in the correct structure for your Filament version (`v3` flat or `v4`/`v5` domain) — controlled by `ARCHITECT_FILAMENT_VERSION`
 - Registers as a global panel action through the plugin
 - Can render as a normal button or icon button
 - Supports these render hooks:
@@ -262,7 +262,7 @@ Until pricing and packaging are finalized, it is safest to describe this as:
 
 - PHP `^8.3`
 - Laravel `^11.0|^12.0`
-- Filament `^4.0|^5.0`
+- Filament `^3.0|^4.0|^5.0`
 
 ---
 
@@ -375,6 +375,7 @@ Key options include:
 - `factories_namespace`
 - `seeders_namespace`
 - `resources_namespace`
+- `filament_version`
 
 Example configuration:
 
@@ -391,6 +392,7 @@ return [
     'factories_namespace' => env('ARCHITECT_FACTORIES_NAMESPACE', 'Database\\Factories'),
     'seeders_namespace' => env('ARCHITECT_SEEDERS_NAMESPACE', 'Database\\Seeders'),
     'resources_namespace' => env('ARCHITECT_RESOURCES_NAMESPACE', 'App\\Filament\\Resources'),
+    'filament_version' => env('ARCHITECT_FILAMENT_VERSION', 'v4'),
 ];
 ```
 
@@ -408,6 +410,26 @@ ARCHITECT_MODELS_NAMESPACE=App\Models
 ARCHITECT_FACTORIES_NAMESPACE=Database\Factories
 ARCHITECT_SEEDERS_NAMESPACE=Database\Seeders
 ARCHITECT_RESOURCES_NAMESPACE=App\Filament\Resources
+ARCHITECT_FILAMENT_VERSION=v4
+```
+
+### Filament version
+
+Architect supports two resource output structures depending on your installed Filament version.
+
+Set `ARCHITECT_FILAMENT_VERSION` in your `.env` file:
+
+| Value | Target | Structure |
+|-------|---------|-----------|
+| `v4` (default) | Filament 4 / 5 | Domain folder per model (`Resources/Users/`) with separate `Schemas/` and `Tables/` sub-classes |
+| `v3` | Filament 3 | Flat structure (`Resources/UserResource.php`) with inline form, table and infolist |
+
+```env
+# Filament 4 or 5 (default)
+ARCHITECT_FILAMENT_VERSION=v4
+
+# Filament 3
+ARCHITECT_FILAMENT_VERSION=v3
 ```
 
 ### Formatting options
@@ -538,7 +560,7 @@ Location depends on `seeders_namespace`.
 Generated seeders use a managed region strategy so repeated generations can refresh the generated seeding block without wiping custom logic outside it.
 
 ### Filament Resource
-Location depends on `resources_namespace`.
+Location depends on `resources_namespace` and `filament_version`.
 
 Generated resource support includes:
 - resource class
@@ -552,6 +574,45 @@ Generated resource support includes:
 - soft delete filters and bulk actions
 - generated relationship fields for foreign-key-like columns
 - optional relationship title-column metadata for generated Filament relationship selects and table columns
+
+#### v4 / v5 — domain structure (default)
+
+Architect generates a **thin resource** that delegates to dedicated schema and table classes.
+
+```
+app/Filament/Resources/
+└── Users/                          # domain folder = Str::pluralStudly(model)
+    ├── UserResource.php             # thin — delegates to Form / Infolist / Table classes
+    ├── Pages/
+    │   ├── CreateUser.php
+    │   ├── EditUser.php
+    │   ├── ListUsers.php
+    │   └── ViewUser.php
+    ├── Schemas/
+    │   ├── UserForm.php             # form()->components([...])
+    │   └── UserInfolist.php         # infolist()->components([...])
+    └── Tables/
+        └── UsersTable.php           # table()->columns([...])
+```
+
+In `merge` mode each file is updated independently: form fields merge into `UserForm.php`, table columns into `UsersTable.php`, and the thin `UserResource.php` only receives new imports and the `getEloquentQuery()` method if needed.
+
+#### v3 — flat / monolithic structure
+
+Architect generates a single **monolithic resource** with form, infolist, and table defined inline, matching the classic Filament v3 layout.
+
+```
+app/Filament/Resources/
+├── UserResource.php                 # form(), infolist(), table() all inline
+└── UserResource/
+    └── Pages/
+        ├── CreateUser.php
+        ├── EditUser.php
+        ├── ListUsers.php
+        └── ViewUser.php
+```
+
+To use v3 output, add `ARCHITECT_FILAMENT_VERSION=v3` to your `.env`.
 
 ---
 
@@ -590,7 +651,8 @@ This means:
 | Model | Missing imports, framework traits, `$fillable`, inferred `belongsTo` relationships | Existing custom methods and existing relationship overrides |
 | Factory | Missing `definition()` keys and generated imports | Existing custom field values and custom state/helper methods |
 | Seeder | Managed generated block inside `run()` | Custom logic outside the managed seed region |
-| Filament Resource | Managed `form()`, `table()`, `infolist()`, generated filters / bulk actions, missing page wiring | Clearly custom unmatched entries where possible, existing page classes |
+| Filament Resource (v3) | Managed `form()`, `table()`, `infolist()`, generated filters / bulk actions, missing page wiring | Clearly custom unmatched entries where possible, existing page classes |
+| Filament Resource (v4) | Thin resource: new imports + `getEloquentQuery()` if missing; `*Form.php`, `*Infolist.php`, `*Table.php` each merged independently | Custom components in each schema/table file; custom page classes |
 | Resource Pages | Missing generated page classes | Existing page classes and their custom logic |
 | Migration Preview / Sync | Revision-aware diffing from the latest stored blueprint revision | Previous revisions stay as the baseline instead of being re-added from stale DB state |
 
@@ -727,11 +789,19 @@ When you use the Architect wizard, it generates the following files:
 - Seedable template with model factory integration
 
 ### Filament Resource
-- **Resource Class**: `app/Filament/Resources/{ModelName}Resource.php`
-- **List Page**: Displays all records in a table
-- **Create Page**: Form for creating new records
-- **Edit Page**: Form for editing existing records
-- **View Page**: Read-only view of a record
+
+Output structure depends on `ARCHITECT_FILAMENT_VERSION` (default: `v4`).
+
+**v4 / v5 — domain structure:**
+- **Resource class**: `app/Filament/Resources/{Models}/` (e.g. `Resources/Users/UserResource.php`)
+- **Form schema**: `Schemas/{Model}Form.php`
+- **Infolist schema**: `Schemas/{Model}Infolist.php`
+- **Table**: `Tables/{Models}Table.php`
+- **Pages**: `Pages/List{Models}.php`, `Create{Model}.php`, `Edit{Model}.php`, `View{Model}.php`
+
+**v3 — flat / monolithic:**
+- **Resource class**: `app/Filament/Resources/{Model}Resource.php`
+- **Pages**: `{Model}Resource/Pages/List{Models}.php`, etc.
 
 
 ## Development

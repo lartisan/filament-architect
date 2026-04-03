@@ -4,8 +4,8 @@ namespace {{ namespace }};
 
 use {{ model_namespace }}\{{ model_class }};
 use Filament\Forms;
-use Filament\Schemas\Schema;
 use Filament\Resources\Resource;
+use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
 use {{ namespace }}\{{ resource_class }}\Pages;
@@ -19,17 +19,39 @@ class {{ resource_class }} extends Resource
 
     public static function form(Schema $schema): Schema
     {
-        return {{ model_class }}Form::configure($schema);
+        return $schema
+            ->components([
+                {{ form_schema }}
+            ]);
     }
 
     public static function infolist(Schema $schema): Schema
     {
-        return {{ model_class }}Infolist::configure($schema);
+        return $schema
+            ->components([
+                {{ infolist_schema }}
+            ]);
     }
 
     public static function table(Table $table): Table
     {
-        return {{ model_plural_class }}Table::configure($table);
+        return $table
+            ->columns([
+                {{ table_columns }}
+            ])
+            ->filters([
+                {{ soft_deletes_filter }}
+            ])
+            ->recordActions([
+                \Filament\Actions\EditAction::make(),
+                \Filament\Actions\DeleteAction::make(),
+            ])
+            ->toolbarActions([
+                \Filament\Actions\BulkActionGroup::make([
+                    \Filament\Actions\DeleteBulkAction::make(),
+                    {{ soft_deletes_bulk_actions }}
+                ]),
+            ]);
     }
 
     public static function getRelations(): array
