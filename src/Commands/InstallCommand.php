@@ -3,43 +3,67 @@
 namespace Lartisan\Architect\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Schema;
 
 class InstallCommand extends Command
 {
     protected $signature = 'architect:install';
 
-    protected $description = 'Install Filament Architect';
+    protected $description = 'Install Filament Architect (first-time setup)';
 
     public function handle(): int
     {
-        $this->info('Installing Filament Architect...');
+        if (Schema::hasTable('architect_blueprints')) {
+            $this->components->warn('Architect tables already exist.');
+            $this->newLine();
+            $this->line('  It looks like Filament Architect is already installed.');
+            $this->line('  If you are upgrading from <comment>v0.2.x</comment>, run:');
+            $this->newLine();
+            $this->line('    <info>php artisan architect:upgrade</info>');
+            $this->newLine();
 
-        // Copy assets to public/ via Filament's asset pipeline
-        $this->call('filament:assets');
+            return self::FAILURE;
+        }
 
-        // Publish migrations
-        $this->call('vendor:publish', [
-            '--provider' => 'Lartisan\\Architect\\ArchitectServiceProvider',
-            '--tag' => 'architect-migrations',
-        ]);
+        $this->components->info('Installing Filament Architect...');
+        $this->newLine();
+
+        $this->publishAssets();
+        $this->publishMigrations();
+        $this->runMigrations();
+        $this->registerComposerHook();
 
         $this->newLine();
-        $this->warn('IMPORTANT: Filament Architect requires database migrations.');
-        $this->newLine();
-        $this->line('  Run <info>php artisan architect:upgrade</info> to migrate and backfill revisions in one step.');
-        $this->newLine();
-        $this->line('  Or manually:');
-        $this->line('    <info>php artisan migrate</info>');
-        $this->line('    <info>php artisan architect:upgrade</info> (to backfill revisions for existing blueprints)');
-
-        $this->registerUpgradeHook();
-
-        $this->info('Filament Architect installed successfully!');
+        $this->components->info('Filament Architect installed successfully!');
 
         return self::SUCCESS;
     }
 
-    protected function registerUpgradeHook(): void
+    private function publishAssets(): void
+    {
+        $this->components->task('Publishing assets', function (): void {
+            $this->callSilently('filament:assets');
+        });
+    }
+
+    private function publishMigrations(): void
+    {
+        $this->components->task('Publishing migrations', function (): void {
+            $this->callSilently('vendor:publish', [
+                '--provider' => 'Lartisan\\Architect\\ArchitectServiceProvider',
+                '--tag' => 'architect-migrations',
+            ]);
+        });
+    }
+
+    private function runMigrations(): void
+    {
+        $this->components->task('Running migrations', function (): void {
+            $this->callSilently('migrate', ['--force' => true]);
+        });
+    }
+
+    private function registerComposerHook(): void
     {
         $path = base_path('composer.json');
 
@@ -52,6 +76,8 @@ class InstallCommand extends Command
         $command = '@php artisan filament:assets';
 
         if (in_array($command, $configuration['scripts']['post-autoload-dump'] ?? [])) {
+            $this->components->twoColumnDetail('Composer hook', '<fg=green;options=bold>Already registered</>');
+
             return;
         }
 
@@ -59,6 +85,6 @@ class InstallCommand extends Command
 
         file_put_contents($path, json_encode($configuration, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
 
-        $this->components->info('Registered `filament:assets` in composer.json post-autoload-dump.');
+        $this->components->twoColumnDetail('Composer hook', '<fg=green;options=bold>Registered</>');
     }
 }

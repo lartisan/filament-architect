@@ -12,7 +12,9 @@ return new class extends Migration
             $table->id();
             $table->foreignId('blueprint_id')->constrained('architect_blueprints')->cascadeOnDelete();
             $table->unsignedInteger('revision');
+            $table->unsignedSmallInteger('snapshot_version')->default(1);
             $table->json('snapshot');
+            $table->json('meta')->nullable();
             $table->timestamps();
 
             $table->unique(['blueprint_id', 'revision']);

@@ -12,11 +12,11 @@ class UpgradeCommand extends Command
     protected $signature = 'architect:upgrade
                             {--dry-run : Preview which blueprints would be backfilled without writing anything}';
 
-    protected $description = 'Publish & run Architect migrations, then backfill blueprint revisions';
+    protected $description = 'Upgrade Filament Architect from v0.2.x → v1.0.0 (run migrations & backfill revisions)';
 
     public function handle(): int
     {
-        $this->info('Running Filament Architect upgrade...');
+        $this->components->info('Upgrading Filament Architect...');
         $this->newLine();
 
         $this->publishMigrations();
@@ -31,7 +31,9 @@ class UpgradeCommand extends Command
 
     private function publishMigrations(): void
     {
-        $alreadyPublished = ! empty(glob(database_path('migrations/*create_architect_blueprints_table.php')));
+        // Check for the v1.0.0 revisions migration specifically — v0.2.x users will
+        // already have the blueprints migration but NOT the new revisions' migration.
+        $alreadyPublished = ! empty(glob(database_path('migrations/*create_architect_blueprint_revisions_table.php')));
 
         if ($alreadyPublished) {
             $this->components->twoColumnDetail('Architect migrations', '<fg=green;options=bold>Already published</>');
@@ -107,9 +109,9 @@ class UpgradeCommand extends Command
         $this->newLine();
 
         if ($isDryRun) {
-            $this->warn(sprintf('[dry-run] %d blueprint(s) would be backfilled. Run without --dry-run to apply.', $blueprints->count()));
+            $this->components->warn(sprintf('[dry-run] %d blueprint(s) would be backfilled. Run without --dry-run to apply.', $blueprints->count()));
         } else {
-            $this->info(sprintf('✓ Successfully backfilled %d blueprint revision(s).', $backfilled));
+            $this->components->info(sprintf('Successfully backfilled %d blueprint revision(s).', $backfilled));
         }
 
         return self::SUCCESS;
