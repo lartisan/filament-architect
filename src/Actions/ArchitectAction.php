@@ -11,6 +11,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
+use Filament\Schemas\Components\Callout;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Group;
 use Filament\Schemas\Components\Livewire;
@@ -24,6 +25,7 @@ use Filament\Support\Enums\Width;
 use Filament\Support\Exceptions\Halt;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use Lartisan\Architect\ArchitectPlugin;
 use Lartisan\Architect\Enums\GenerationMode;
@@ -68,6 +70,10 @@ class ArchitectAction extends Action
             ->modalWidth(Width::FiveExtraLarge)
             ->slideOver()
             ->schema([
+                Callout::make()
+                    ->view('architect::components.pro-cta')
+                    ->hidden($isProInstalled),
+
                 Tabs::make('Tabs')
                     ->tabs(self::tabs())
                     ->extraAttributes([
