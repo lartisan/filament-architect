@@ -261,8 +261,7 @@ Until pricing and packaging are finalized, it is safest to describe this as:
 ## Requirements
 
 - PHP `^8.3`
-- Laravel `^11.0|^12.0`
-- Filament `^3.0|^4.0|^5.0`
+- Filament `^4.0|^5.0`
 
 ---
 
