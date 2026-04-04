@@ -19,11 +19,13 @@ use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Components\Wizard;
+use Filament\Support\Enums\Alignment;
 use Filament\Support\Enums\Width;
 use Filament\Support\Exceptions\Halt;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Lartisan\Architect\ArchitectPlugin;
 use Lartisan\Architect\Enums\GenerationMode;
 use Lartisan\Architect\Generators\FactoryGenerator;
 use Lartisan\Architect\Generators\FilamentResourceGenerator;
@@ -104,7 +106,19 @@ class ArchitectAction extends Action
             })
             ->closeModalByClickingAway(false)
             ->modalCancelActionLabel(__('Close'))
-            ->modalSubmitAction(false);
+            ->modalSubmitAction(false)
+            ->modalFooterActionsAlignment(Alignment::Justify)
+            ->modalFooterActions(function (): array {
+                return [
+                    $this->getModalCancelAction(),
+                    Action::make('architect_version_badge')
+                        ->badge()
+                        ->label(__('Plugin version').' '.ArchitectPlugin::version())
+                        ->color('gray')
+                        ->disabled()
+                        ->extraAttributes(['class' => 'ms-auto self-center']),
+                ];
+            });
     }
 
     /**

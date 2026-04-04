@@ -1,13 +1,9 @@
 <?php
 
-use Filament\Actions\Action;
-use Filament\Actions\View\ActionsRenderHook;
 use Filament\Panel;
 use Filament\Support\Facades\FilamentView;
 use Filament\View\PanelsRenderHook;
-use Lartisan\Architect\Actions\ArchitectAction;
 use Lartisan\Architect\ArchitectPlugin;
-use Lartisan\Architect\Livewire\ArchitectWizard;
 use Lartisan\Architect\Tests\TestCase;
 
 uses(TestCase::class);
@@ -57,39 +53,4 @@ it('does not register any architect hooks when the plugin is explicitly hidden',
     expect(FilamentView::hasRenderHook(PanelsRenderHook::GLOBAL_SEARCH_BEFORE))->toBeFalse()
         ->and(FilamentView::hasRenderHook(PanelsRenderHook::BODY_END))->toBeFalse()
         ->and(FilamentView::hasRenderHook(PanelsRenderHook::SIDEBAR_NAV_END))->toBeFalse();
-});
-
-it('registers the architect version action render hook for the wizard modal when supported', function () {
-    if (! class_exists(ActionsRenderHook::class)) {
-        expect(true)->toBeTrue();
-
-        return;
-    }
-
-    config()->set('architect.show', true);
-
-    $plugin = new ArchitectPlugin;
-
-    $plugin->boot(new Panel);
-
-    expect(FilamentView::hasRenderHook(ActionsRenderHook::MODAL_SCHEMA_AFTER, ArchitectWizard::class))
-        ->toBeTrue();
-
-    $architectActionHook = (string) FilamentView::renderHook(
-        ActionsRenderHook::MODAL_SCHEMA_AFTER,
-        ArchitectWizard::class,
-        ['action' => ArchitectAction::make()],
-    );
-
-    $otherActionHook = (string) FilamentView::renderHook(
-        ActionsRenderHook::MODAL_SCHEMA_AFTER,
-        ArchitectWizard::class,
-        ['action' => Action::make('anotherAction')],
-    );
-
-    expect($architectActionHook)
-        ->toContain('Plugin version')
-        ->toContain(ArchitectPlugin::version())
-        ->and($otherActionHook)
-        ->toBe('');
 });

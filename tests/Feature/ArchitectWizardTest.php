@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
+use Lartisan\Architect\ArchitectPlugin;
 use Lartisan\Architect\Generators\MigrationGenerator;
 use Lartisan\Architect\Generators\ModelGenerator;
 use Lartisan\Architect\Livewire\ArchitectWizard;
@@ -65,6 +66,19 @@ class ArchitectWizardTest extends TestCase
             ->call('openArchitect');
 
         $this->assertSame('openArchitect', data_get($component->instance()->mountedActions, '0.name'));
+    }
+
+    /** @test */
+    public function it_places_version_badge_in_the_modal_footer_actions()
+    {
+        $test = Livewire::test(ArchitectWizard::class)->call('openArchitect');
+
+        $footerActions = $test->instance()->getMountedAction()->getModalFooterActions();
+
+        $this->assertArrayHasKey('cancel', $footerActions);
+        $this->assertArrayHasKey('architect_version_badge', $footerActions);
+        $this->assertStringContainsString('Plugin version', $footerActions['architect_version_badge']->getLabel());
+        $this->assertStringContainsString(ArchitectPlugin::version(), $footerActions['architect_version_badge']->getLabel());
     }
 
     /** @test */
