@@ -650,7 +650,13 @@ PHP;
                     }
                 }
 
-                return implode('||', $parts);
+                // Sort member parts so that method/property ordering differences
+                // between the actual file and the generated stub do not trigger
+                // a false "modified" classification.
+                $className = array_shift($parts);
+                sort($parts);
+
+                return implode('||', array_merge([$className], $parts));
 
             } catch (\Throwable) {
                 return '';
