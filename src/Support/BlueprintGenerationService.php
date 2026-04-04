@@ -84,18 +84,24 @@ class BlueprintGenerationService
 
         if ($blueprintData->generateResource) {
             FilamentResourceGenerator::make()->generate($blueprintData);
+        }
 
-            [
-                'deletable' => $deletableLegacyFiles,
-                'modified' => $modifiedLegacyFiles,
-            ] = FilamentResourceGenerator::classifyLegacyV3Artifacts($blueprintData);
+        // Always clean up orphaned v3 artifacts when running in v4 mode, regardless
+        // of whether the resource was regenerated this run. A user might update only
+        // the migration/model without regenerating the resource, and the legacy flat
+        // files should still be removed to avoid autoloader conflicts.
+        [
+            'deletable' => $deletableLegacyFiles,
+            'modified' => $modifiedLegacyFiles,
+        ] = FilamentResourceGenerator::classifyLegacyV3Artifacts($blueprintData);
 
-            foreach ($deletableLegacyFiles as $path) {
-                File::delete($path);
-                $deletedLegacyFiles[] = $path;
-            }
+        foreach ($deletableLegacyFiles as $path) {
+            File::delete($path);
+            $deletedLegacyFiles[] = $path;
+        }
 
-            // Remove empty legacy Pages directory after deleting all contained files.
+        if ($deletableLegacyFiles !== []) {
+            // Remove empty legacy Pages/ and resource directories after file deletion.
             $legacyDir = GenerationPathResolver::legacyV3ResourceDirectory("{$blueprintData->modelName}Resource");
             $pagesDir = "{$legacyDir}/Pages";
 
