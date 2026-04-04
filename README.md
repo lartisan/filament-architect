@@ -152,8 +152,8 @@ It also normalizes merged output for several blueprint types so updated files st
 - multiline factory `definition()` arrays
 
 ### Filament panel integration
-- Works with **Filament 3, 4 and 5**
-- Generates resources in the correct structure for your Filament version (`v3` flat or `v4`/`v5` domain) — controlled by `ARCHITECT_FILAMENT_VERSION`
+- Works with **Filament 4 and 5** (legacy `v3` flat structure also supported via `ARCHITECT_FILAMENT_VERSION=v3`)
+- Generates resources in the correct structure for your Filament version (`v4`/`v5` domain by default, `v3` flat as legacy) — controlled by `ARCHITECT_FILAMENT_VERSION`
 - Registers as a global panel action through the plugin
 - Can render as a normal button or icon button
 - Supports these render hooks:
