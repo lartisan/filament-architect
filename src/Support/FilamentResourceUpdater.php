@@ -253,7 +253,15 @@ class FilamentResourceUpdater
         $existingToolbarArray = $this->findMethodCallArray($existingMethod, 'toolbarActions');
         $generatedToolbarArray = $this->findMethodCallArray($generatedMethod, 'toolbarActions');
 
-        if (! $existingToolbarArray instanceof Expr\Array_ || ! $generatedToolbarArray instanceof Expr\Array_) {
+        // Nothing to merge if the generated method has no toolbarActions().
+        if (! $generatedToolbarArray instanceof Expr\Array_) {
+            return;
+        }
+
+        // Existing table() has no toolbarActions() yet — inject the entire generated call.
+        if (! $existingToolbarArray instanceof Expr\Array_) {
+            $this->appendGeneratedToolbarActionsCall($existingMethod, $generatedMethod);
+
             return;
         }
 
@@ -366,6 +374,41 @@ class FilamentResourceUpdater
 
         if ($generatedMethod instanceof Stmt\ClassMethod) {
             $existingClass->stmts[] = $generatedMethod;
+        }
+    }
+
+    /**
+     * When the existing table() method has no toolbarActions() call yet, find the
+     * toolbarActions() node in the generated method and append it to the outermost
+     * fluent chain in the existing method's return statement.
+     */
+    private function appendGeneratedToolbarActionsCall(Stmt\ClassMethod $existingMethod, Stmt\ClassMethod $generatedMethod): void
+    {
+        /** @var Expr\MethodCall|null $generatedCall */
+        $generatedCall = (new NodeFinder)->findFirst($generatedMethod->stmts ?? [], function ($node) {
+            return $node instanceof Expr\MethodCall
+                && $node->name instanceof Identifier
+                && $node->name->toString() === 'toolbarActions'
+                && isset($node->args[0])
+                && $node->args[0]->value instanceof Expr\Array_;
+        });
+
+        if (! $generatedCall instanceof Expr\MethodCall) {
+            return;
+        }
+
+        foreach ($existingMethod->stmts ?? [] as $stmt) {
+            if (! $stmt instanceof Stmt\Return_ || ! $stmt->expr instanceof Expr) {
+                continue;
+            }
+
+            $stmt->expr = new Expr\MethodCall(
+                $stmt->expr,
+                new Identifier('toolbarActions'),
+                $generatedCall->args,
+            );
+
+            return;
         }
     }
 

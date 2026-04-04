@@ -4,6 +4,7 @@ namespace Lartisan\Architect;
 
 use Composer\InstalledVersions;
 use Filament\Actions\Action as FilamentAction;
+use Filament\Actions\View\ActionsRenderHook;
 use Filament\Contracts\Plugin;
 use Filament\Panel;
 use Filament\Support\Facades\FilamentView;
@@ -123,12 +124,12 @@ class ArchitectPlugin implements Plugin
 
     protected function registerArchitectActionRenderHooks(): void
     {
-        if (! class_exists(\Filament\Actions\View\ActionsRenderHook::class)) {
+        if (! class_exists(ActionsRenderHook::class)) {
             return;
         }
 
         FilamentView::registerRenderHook(
-            \Filament\Actions\View\ActionsRenderHook::MODAL_SCHEMA_AFTER,
+            ActionsRenderHook::MODAL_SCHEMA_AFTER,
             function (array $data): string {
                 $action = $data['action'] ?? null;
 

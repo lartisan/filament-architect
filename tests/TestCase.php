@@ -53,5 +53,6 @@ class TestCase extends Orchestra
         config()->set('app.key', 'base64:Hupx3yAySikrM2/edkZQNQHslgDWYfiBfCuSThJ5SK8=');
         config()->set('session.driver', 'array');
         config()->set('session.serialization', 'php');
+        config()->set('architect.format_generated_files', false);
     }
 }

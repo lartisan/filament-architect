@@ -1,10 +1,10 @@
 # Upgrade Guide
 
-## Upgrading from `v0.1.5` to `v1.0.0`
+## Upgrading from any pre-1.0.0 release to `v1.0.0`
 
 `v1.0.0` introduces a new database table and related schema updates required by the blueprint revision workflow.
 
-If you are upgrading from `v0.1.5` or any earlier release, you **must** publish the latest package migrations and run your application's migrations before opening Filament Architect.
+If you are upgrading from any release prior to `v1.0.0`, you **must** publish the latest package migrations and run your application's migrations before opening Filament Architect.
 
 ## Required upgrade steps
 

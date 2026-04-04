@@ -12,7 +12,7 @@ class UpgradeCommand extends Command
     protected $signature = 'architect:upgrade
                             {--dry-run : Preview which blueprints would be backfilled without writing anything}';
 
-    protected $description = 'Upgrade Filament Architect from v0.2.x → v1.0.0 (run migrations & backfill revisions)';
+    protected $description = 'Upgrade Filament Architect from any pre-1.0.0 release to v1.0.0 (run migrations & backfill revisions)';
 
     public function handle(): int
     {
