@@ -334,6 +334,53 @@ PHP;
     }
 
     /**
+     * Detect existing Filament v3 (flat) artifacts for the given model name.
+     *
+     * Returns an array of absolute paths that exist on disk but belong to the
+     * old flat structure — the monolithic resource file and every file inside
+     * the companion `{ModelName}Resource/` directory. Returns an empty array
+     * when not running in v4 mode or when no legacy files are found.
+     *
+     * Callers should present these paths to the user as files to review and
+     * delete manually; Architect does NOT auto-delete them.
+     *
+     * @return array<int, string>
+     */
+    public static function detectLegacyV3Artifacts(string $modelName): array
+    {
+        if (! GenerationPathResolver::isFilamentV4()) {
+            return [];
+        }
+
+        $resourceName = "{$modelName}Resource";
+        $legacyFile = GenerationPathResolver::legacyV3Resource($resourceName);
+        $legacyDir = GenerationPathResolver::legacyV3ResourceDirectory($resourceName);
+
+        // The v4 domain directory is the parent of the generated resource file.
+        // If the legacy flat file resolves to the same path as the v4 resource
+        // (e.g. custom namespace collapses the distinction), skip detection.
+        $v4ResourceFile = GenerationPathResolver::resource($resourceName);
+
+        if ($legacyFile === $v4ResourceFile) {
+            return [];
+        }
+
+        $detected = [];
+
+        if (File::exists($legacyFile)) {
+            $detected[] = $legacyFile;
+        }
+
+        if (File::isDirectory($legacyDir)) {
+            foreach (File::allFiles($legacyDir) as $file) {
+                $detected[] = $file->getPathname();
+            }
+        }
+
+        return $detected;
+    }
+
+    /**
      * Write (or merge) the Form, Infolist and Table files for the v4 domain structure.
      */
     protected function generateSeparateSchemaFiles(BlueprintData $blueprint): void

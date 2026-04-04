@@ -9,9 +9,36 @@ use Lartisan\Architect\ValueObjects\RegenerationPlan;
 class BlueprintGenerationHookRegistry
 {
     /**
+     * Callbacks invoked before generation begins. Any callback may throw to abort.
+     *
+     * @var array<int, callable(BlueprintData): void>
+     */
+    protected array $beforeGenerateCallbacks = [];
+
+    /**
      * @var array<int, callable(Blueprint, BlueprintData, RegenerationPlan, bool): void>
      */
     protected array $afterGenerateCallbacks = [];
+
+    /**
+     * @param  callable(BlueprintData): void  $callback
+     */
+    public function beforeGenerate(callable $callback): static
+    {
+        $this->beforeGenerateCallbacks[] = $callback;
+
+        return $this;
+    }
+
+    /**
+     * Run all before-generate callbacks. Any callback may throw to abort generation.
+     */
+    public function runBeforeGenerate(BlueprintData $blueprintData): void
+    {
+        foreach ($this->beforeGenerateCallbacks as $callback) {
+            $callback($blueprintData);
+        }
+    }
 
     /**
      * @param  callable(Blueprint, BlueprintData, RegenerationPlan, bool): void  $callback
@@ -32,6 +59,7 @@ class BlueprintGenerationHookRegistry
 
     public function flush(): static
     {
+        $this->beforeGenerateCallbacks = [];
         $this->afterGenerateCallbacks = [];
 
         return $this;

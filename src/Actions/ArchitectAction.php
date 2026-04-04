@@ -77,7 +77,11 @@ class ArchitectAction extends Action
             ->action(function (array $data) {
                 try {
                     $blueprintData = BlueprintData::fromArray($data, shouldValidate: true);
-                    ['plan' => $plan, 'shouldRunMigration' => $shouldRunMigration] = app(BlueprintGenerationService::class)->generate($blueprintData);
+                    [
+                        'plan' => $plan,
+                        'shouldRunMigration' => $shouldRunMigration,
+                        'detectedLegacyFiles' => $detectedLegacyFiles,
+                    ] = app(BlueprintGenerationService::class)->generate($blueprintData);
 
                     Notification::make()->title('Succes!')->success()->send();
 
@@ -90,6 +94,22 @@ class ArchitectAction extends Action
                             ->title(__('Migration deferred for safety'))
                             ->body($warningBody)
                             ->warning()
+                            ->send();
+                    }
+
+                    if ($detectedLegacyFiles !== []) {
+                        $fileList = collect($detectedLegacyFiles)
+                            ->map(fn (string $path) => '• '.Str::after($path, base_path().DIRECTORY_SEPARATOR))
+                            ->implode("\n");
+
+                        Notification::make()
+                            ->title(__('Legacy Filament v3 files detected'))
+                            ->body(__(
+                                "The following v3 resource files were not removed automatically. Please review and delete them once you have confirmed the new v4 structure is working correctly:\n\n:files",
+                                ['files' => $fileList]
+                            ))
+                            ->warning()
+                            ->persistent()
                             ->send();
                     }
 

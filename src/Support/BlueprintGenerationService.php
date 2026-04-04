@@ -25,6 +25,10 @@ class BlueprintGenerationService
      */
     public function generate(BlueprintData $blueprintData): array
     {
+        // Allow registered hooks to abort generation before any state is mutated
+        // (e.g. lock enforcement). Hooks throw to abort; any exception propagates up.
+        app(BlueprintGenerationHookRegistry::class)->runBeforeGenerate($blueprintData);
+
         $plan = app(RegenerationPlanner::class)->plan($blueprintData);
 
         if ($plan->hasBlockingSchemaChanges()) {
@@ -75,8 +79,12 @@ class BlueprintGenerationService
             SeederGenerator::make()->generate($blueprintData);
         }
 
+        $detectedLegacyFiles = [];
+
         if ($blueprintData->generateResource) {
             FilamentResourceGenerator::make()->generate($blueprintData);
+
+            $detectedLegacyFiles = FilamentResourceGenerator::detectLegacyV3Artifacts($blueprintData->modelName);
         }
 
         $storedBlueprint->recordRevision($blueprintData, [
@@ -103,6 +111,7 @@ class BlueprintGenerationService
         return [
             'plan' => $plan,
             'shouldRunMigration' => $shouldRunMigration,
+            'detectedLegacyFiles' => $detectedLegacyFiles,
         ];
     }
 

@@ -150,6 +150,34 @@ class GenerationPathResolver
     }
 
     // -------------------------------------------------------------------------
+    // Legacy v3 detection helpers
+    // -------------------------------------------------------------------------
+
+    /**
+     * The flat Filament v3 path for a resource file, regardless of the current
+     * `architect.filament_version` config. Used to detect orphaned v3 artifacts
+     * after the project has been upgraded to generate the v4 domain structure.
+     *
+     * Example: app/Filament/Resources/PostResource.php
+     */
+    public static function legacyV3Resource(string $resourceName): string
+    {
+        $baseNamespace = (string) config('architect.resources_namespace', 'App\\Filament\\Resources');
+
+        return static::pathForNamespace($baseNamespace, $resourceName);
+    }
+
+    /**
+     * The flat Filament v3 companion directory for Pages/, regardless of config.
+     *
+     * Example: app/Filament/Resources/PostResource
+     */
+    public static function legacyV3ResourceDirectory(string $resourceName): string
+    {
+        return Str::beforeLast(static::legacyV3Resource($resourceName), '.php');
+    }
+
+    // -------------------------------------------------------------------------
     // Shared namespace/path helpers
     // -------------------------------------------------------------------------
 
