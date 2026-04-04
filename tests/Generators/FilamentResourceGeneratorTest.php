@@ -1267,78 +1267,152 @@ describe('v4 preview', function () {
 });
 
 // ---------------------------------------------------------------------------
-// Legacy v3 artifact detection
+// Legacy v3 artifact classification (smart auto-delete)
 // ---------------------------------------------------------------------------
 
-describe('detectLegacyV3Artifacts()', function () {
+describe('classifyLegacyV3Artifacts()', function () {
     beforeEach(fn () => useFilamentV4());
 
-    it('returns an empty array when no legacy v3 files exist', function () {
-        expect(FilamentResourceGenerator::detectLegacyV3Artifacts('Post'))->toBe([]);
+    it('returns empty when no legacy v3 files exist', function () {
+        $blueprint = BlueprintData::fromArray(['table_name' => 'posts', 'model_name' => 'Post', 'columns' => []]);
+
+        $result = FilamentResourceGenerator::classifyLegacyV3Artifacts($blueprint);
+
+        expect($result['deletable'])->toBe([])
+            ->and($result['modified'])->toBe([]);
     });
 
-    it('detects an orphaned v3 resource file at the flat location', function () {
-        // Write a fake v3 resource at the flat position
+    it('classifies an unmodified resource file as deletable', function () {
+        $blueprint = BlueprintData::fromArray(['table_name' => 'posts', 'model_name' => 'Post', 'columns' => [
+            ['name' => 'title', 'type' => 'string'],
+        ]]);
+
+        // Generate v3 content and write it to the legacy flat location.
+        config()->set('architect.filament_version', 'v3');
+        $v3Content = (new FilamentResourceGenerator)->previewResource($blueprint);
+        config()->set('architect.filament_version', 'v4');
+
         $legacyFile = GenerationPathResolver::legacyV3Resource('PostResource');
         File::ensureDirectoryExists(dirname($legacyFile));
-        File::put($legacyFile, '<?php // legacy');
+        File::put($legacyFile, $v3Content);
 
-        $detected = FilamentResourceGenerator::detectLegacyV3Artifacts('Post');
+        $result = FilamentResourceGenerator::classifyLegacyV3Artifacts($blueprint);
 
-        expect($detected)->toContain($legacyFile);
+        expect($result['deletable'])->toContain($legacyFile)
+            ->and($result['modified'])->not->toContain($legacyFile);
     });
 
-    it('detects all files inside the orphaned v3 Pages directory', function () {
-        $legacyDir = GenerationPathResolver::legacyV3ResourceDirectory('PostResource');
-        $pagesDir = $legacyDir.'/Pages';
+    it('classifies a resource file as deletable even when blueprint columns changed', function () {
+        // Blueprint v1 — generated and stored as legacy
+        $blueprintV1 = BlueprintData::fromArray(['table_name' => 'posts', 'model_name' => 'Post', 'columns' => [
+            ['name' => 'title', 'type' => 'string'],
+        ]]);
 
-        File::ensureDirectoryExists($pagesDir);
-        File::put($pagesDir.'/ListPosts.php', '<?php // legacy list');
-        File::put($pagesDir.'/CreatePost.php', '<?php // legacy create');
+        config()->set('architect.filament_version', 'v3');
+        $v3Content = (new FilamentResourceGenerator)->previewResource($blueprintV1);
+        config()->set('architect.filament_version', 'v4');
 
-        $detected = FilamentResourceGenerator::detectLegacyV3Artifacts('Post');
-
-        expect($detected)
-            ->toContain($pagesDir.'/ListPosts.php')
-            ->toContain($pagesDir.'/CreatePost.php');
-    });
-
-    it('detects both the resource file and all Pages files when both exist', function () {
         $legacyFile = GenerationPathResolver::legacyV3Resource('PostResource');
-        $legacyDir = GenerationPathResolver::legacyV3ResourceDirectory('PostResource');
-        $pagesDir = $legacyDir.'/Pages';
+        File::ensureDirectoryExists(dirname($legacyFile));
+        File::put($legacyFile, $v3Content);
 
-        File::ensureDirectoryExists($pagesDir);
-        File::put($legacyFile, '<?php // legacy resource');
-        File::put($pagesDir.'/ListPosts.php', '<?php // legacy list');
+        // Blueprint v2 — user added a new column; v3 file still has old columns
+        $blueprintV2 = BlueprintData::fromArray(['table_name' => 'posts', 'model_name' => 'Post', 'columns' => [
+            ['name' => 'title', 'type' => 'string'],
+            ['name' => 'body', 'type' => 'text'],
+        ]]);
 
-        $detected = FilamentResourceGenerator::detectLegacyV3Artifacts('Post');
+        $result = FilamentResourceGenerator::classifyLegacyV3Artifacts($blueprintV2);
 
-        expect($detected)
-            ->toContain($legacyFile)
-            ->toContain($pagesDir.'/ListPosts.php')
-            ->toHaveCount(2);
+        expect($result['deletable'])->toContain($legacyFile)
+            ->and($result['modified'])->not->toContain($legacyFile);
     });
 
-    it('returns an empty array in v3 mode (nothing to migrate)', function () {
+    it('classifies a customised resource file as modified', function () {
+        $blueprint = BlueprintData::fromArray(['table_name' => 'posts', 'model_name' => 'Post', 'columns' => []]);
+
+        $legacyFile = GenerationPathResolver::legacyV3Resource('PostResource');
+        File::ensureDirectoryExists(dirname($legacyFile));
+        File::put($legacyFile, '<?php // my custom code that differs from generated output');
+
+        $result = FilamentResourceGenerator::classifyLegacyV3Artifacts($blueprint);
+
+        expect($result['modified'])->toContain($legacyFile)
+            ->and($result['deletable'])->not->toContain($legacyFile);
+    });
+
+    it('classifies unmodified pages as deletable when generated by Architect in v3 mode', function () {
+        $blueprint = BlueprintData::fromArray([
+            'table_name' => 'posts',
+            'model_name' => 'Post',
+            'columns' => [['name' => 'title', 'type' => 'string']],
+            'gen_resource' => true,
+        ]);
+
+        // Generate all v3 resource files at the flat location.
+        config()->set('architect.filament_version', 'v3');
+        (new FilamentResourceGenerator)->generate($blueprint);
+        config()->set('architect.filament_version', 'v4');
+
+        $legacyDir = GenerationPathResolver::legacyV3ResourceDirectory('PostResource');
+        $listPage = "{$legacyDir}/Pages/ListPosts.php";
+
+        expect(File::exists($listPage))->toBeTrue();
+
+        $result = FilamentResourceGenerator::classifyLegacyV3Artifacts($blueprint);
+
+        expect($result['deletable'])->toContain($listPage)
+            ->and($result['modified'])->not->toContain($listPage);
+    });
+
+    it('classifies a customised page file as modified', function () {
+        $blueprint = BlueprintData::fromArray(['table_name' => 'posts', 'model_name' => 'Post', 'columns' => []]);
+
+        $legacyDir = GenerationPathResolver::legacyV3ResourceDirectory('PostResource');
+        $pagesDir = "{$legacyDir}/Pages";
+
+        File::ensureDirectoryExists($pagesDir);
+        File::put("{$pagesDir}/ListPosts.php", '<?php // custom list page code that differs');
+
+        $result = FilamentResourceGenerator::classifyLegacyV3Artifacts($blueprint);
+
+        expect($result['modified'])->toContain("{$pagesDir}/ListPosts.php")
+            ->and($result['deletable'])->not->toContain("{$pagesDir}/ListPosts.php");
+    });
+
+    it('classifies unknown files in the legacy directory as modified', function () {
+        $blueprint = BlueprintData::fromArray(['table_name' => 'posts', 'model_name' => 'Post', 'columns' => []]);
+
+        $legacyDir = GenerationPathResolver::legacyV3ResourceDirectory('PostResource');
+        $pagesDir = "{$legacyDir}/Pages";
+
+        File::ensureDirectoryExists($pagesDir);
+        File::put("{$pagesDir}/CustomHelper.php", '<?php // some custom helper file');
+
+        $result = FilamentResourceGenerator::classifyLegacyV3Artifacts($blueprint);
+
+        expect($result['modified'])->toContain("{$pagesDir}/CustomHelper.php");
+    });
+
+    it('returns empty in v3 mode (nothing to migrate)', function () {
         useFilamentV3();
 
+        $blueprint = BlueprintData::fromArray(['table_name' => 'posts', 'model_name' => 'Post', 'columns' => []]);
+
         $legacyFile = GenerationPathResolver::legacyV3Resource('PostResource');
         File::ensureDirectoryExists(dirname($legacyFile));
         File::put($legacyFile, '<?php // legacy');
 
-        expect(FilamentResourceGenerator::detectLegacyV3Artifacts('Post'))->toBe([]);
+        $result = FilamentResourceGenerator::classifyLegacyV3Artifacts($blueprint);
+
+        expect($result['deletable'])->toBe([])
+            ->and($result['modified'])->toBe([]);
     });
 
-    it('returns empty when v3 flat path equals v4 domain path (custom namespace with no nesting)', function () {
-        // Both paths should be the same only in edge-case namespace configs — no
-        // detection should fire to avoid incorrectly flagging the generated file.
-        // We can't easily reproduce this with the default config, but we verify
-        // the standard case returns non-empty to confirm the guard is not over-eager.
+    it('v3 flat path and v4 domain path differ in default config', function () {
         $legacyFile = GenerationPathResolver::legacyV3Resource('PostResource');
         $v4File = GenerationPathResolver::resource('PostResource');
 
-        // In default v4 config these must differ
         expect($legacyFile)->not->toBe($v4File);
     });
 });

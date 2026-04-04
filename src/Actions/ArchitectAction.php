@@ -80,7 +80,8 @@ class ArchitectAction extends Action
                     [
                         'plan' => $plan,
                         'shouldRunMigration' => $shouldRunMigration,
-                        'detectedLegacyFiles' => $detectedLegacyFiles,
+                        'deletedLegacyFiles' => $deletedLegacyFiles,
+                        'modifiedLegacyFiles' => $modifiedLegacyFiles,
                     ] = app(BlueprintGenerationService::class)->generate($blueprintData);
 
                     Notification::make()->title('Succes!')->success()->send();
@@ -97,15 +98,30 @@ class ArchitectAction extends Action
                             ->send();
                     }
 
-                    if ($detectedLegacyFiles !== []) {
-                        $fileList = collect($detectedLegacyFiles)
+                    if ($deletedLegacyFiles !== []) {
+                        $fileList = collect($deletedLegacyFiles)
+                            ->map(fn (string $path) => '• '.Str::after($path, base_path().DIRECTORY_SEPARATOR))
+                            ->implode("\n");
+
+                        Notification::make()
+                            ->title(__('Legacy Filament v3 files removed'))
+                            ->body(__(
+                                "The following unmodified v3 resource files were automatically deleted:\n\n:files",
+                                ['files' => $fileList]
+                            ))
+                            ->info()
+                            ->send();
+                    }
+
+                    if ($modifiedLegacyFiles !== []) {
+                        $fileList = collect($modifiedLegacyFiles)
                             ->map(fn (string $path) => '• '.Str::after($path, base_path().DIRECTORY_SEPARATOR))
                             ->implode("\n");
 
                         Notification::make()
                             ->title(__('Legacy Filament v3 files detected'))
                             ->body(__(
-                                "The following v3 resource files were not removed automatically. Please review and delete them once you have confirmed the new v4 structure is working correctly:\n\n:files",
+                                "The following v3 resource files appear to have been customised and were not removed automatically. Please review and delete them once you have confirmed the new v4 structure is working correctly:\n\n:files",
                                 ['files' => $fileList]
                             ))
                             ->warning()

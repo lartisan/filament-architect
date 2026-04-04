@@ -11,6 +11,10 @@ use Lartisan\Architect\Support\FilamentResourceUpdater;
 use Lartisan\Architect\Support\GenerationPathResolver;
 use Lartisan\Architect\ValueObjects\BlueprintData;
 use Lartisan\Architect\ValueObjects\ColumnDefinition;
+use PhpParser\Node;
+use PhpParser\NodeFinder;
+use PhpParser\ParserFactory;
+use PhpParser\PrettyPrinter\Standard as PrettyPrinter;
 
 readonly class FilamentResourceGenerator extends AbstractGenerator
 {
@@ -334,50 +338,113 @@ PHP;
     }
 
     /**
-     * Detect existing Filament v3 (flat) artifacts for the given model name.
+     * Classify existing Filament v3 (flat) artifacts for the given blueprint.
      *
-     * Returns an array of absolute paths that exist on disk but belong to the
-     * old flat structure — the monolithic resource file and every file inside
-     * the companion `{ModelName}Resource/` directory. Returns an empty array
-     * when not running in v4 mode or when no legacy files are found.
+     * Each legacy file is compared (normalised whitespace) against the content
+     * Architect would have generated in v3 mode. Files whose content still
+     * matches are safe to auto-delete (`deletable`). Files whose content has
+     * been customised must be reviewed by the developer (`modified`).
      *
-     * Callers should present these paths to the user as files to review and
-     * delete manually; Architect does NOT auto-delete them.
+     * Returns an empty result when not running in v4 mode or when no legacy
+     * files are found.
      *
-     * @return array<int, string>
+     * @return array{deletable: string[], modified: string[]}
      */
-    public static function detectLegacyV3Artifacts(string $modelName): array
+    public static function classifyLegacyV3Artifacts(BlueprintData $blueprint): array
     {
+        $empty = ['deletable' => [], 'modified' => []];
+
         if (! GenerationPathResolver::isFilamentV4()) {
-            return [];
+            return $empty;
         }
 
+        $modelName = $blueprint->modelName;
         $resourceName = "{$modelName}Resource";
         $legacyFile = GenerationPathResolver::legacyV3Resource($resourceName);
         $legacyDir = GenerationPathResolver::legacyV3ResourceDirectory($resourceName);
-
-        // The v4 domain directory is the parent of the generated resource file.
-        // If the legacy flat file resolves to the same path as the v4 resource
-        // (e.g. custom namespace collapses the distinction), skip detection.
         $v4ResourceFile = GenerationPathResolver::resource($resourceName);
 
         if ($legacyFile === $v4ResourceFile) {
-            return [];
+            return $empty;
         }
 
-        $detected = [];
+        $deletable = [];
+        $modified = [];
 
-        if (File::exists($legacyFile)) {
-            $detected[] = $legacyFile;
-        }
+        // Temporarily switch to v3 mode so stubs and path logic generate v3 content.
+        $originalVersion = config('architect.filament_version');
+        config()->set('architect.filament_version', 'v3');
 
-        if (File::isDirectory($legacyDir)) {
-            foreach (File::allFiles($legacyDir) as $file) {
-                $detected[] = $file->getPathname();
+        try {
+            $generator = new static;
+            $baseNamespace = (string) config('architect.resources_namespace', 'App\\Filament\\Resources');
+            $modelPlural = Str::plural($modelName);
+
+            // --- Main resource file ---
+            if (File::exists($legacyFile)) {
+                $expectedContent = $generator->getContent($blueprint);
+                $actualContent = File::get($legacyFile);
+
+                // Use structural comparison: skip the generated method bodies (form/table/infolist)
+                // so that a blueprint column change doesn't incorrectly flag the file as modified.
+                if (static::isStructurallyUnmodified($actualContent, $expectedContent)) {
+                    $deletable[] = $legacyFile;
+                } else {
+                    $modified[] = $legacyFile;
+                }
             }
+
+            // --- Pages directory ---
+            if (File::isDirectory($legacyDir)) {
+                $knownPageFiles = [
+                    "{$legacyDir}/Pages/List{$modelPlural}.php" => 'filament-resource-list',
+                    "{$legacyDir}/Pages/Create{$modelName}.php" => 'filament-resource-create',
+                    "{$legacyDir}/Pages/Edit{$modelName}.php" => 'filament-resource-edit',
+                    "{$legacyDir}/Pages/View{$modelName}.php" => 'filament-resource-view',
+                ];
+
+                $classified = [];
+
+                foreach ($knownPageFiles as $filePath => $stubName) {
+                    if (! File::exists($filePath)) {
+                        continue;
+                    }
+
+                    $stub = $generator->getStub($stubName);
+                    $expectedContent = $generator->replacePlaceholders($stub, [
+                        '{{ namespace }}' => $baseNamespace,
+                        '{{ resource_namespace }}' => $baseNamespace,
+                        '{{ resource_class }}' => $resourceName,
+                        '{{ model_class }}' => $modelName,
+                        '{{ model_plural_class }}' => $modelPlural,
+                    ]);
+
+                    $expected = static::normalizeContent($expectedContent);
+                    $actual = static::normalizeContent(File::get($filePath));
+
+                    if ($expected === $actual) {
+                        $deletable[] = $filePath;
+                    } else {
+                        $modified[] = $filePath;
+                    }
+
+                    $classified[] = $filePath;
+                }
+
+                // Any unexpected files in the legacy directory are treated as modified.
+                foreach (File::allFiles($legacyDir) as $file) {
+                    $pathname = $file->getPathname();
+
+                    if (! in_array($pathname, $classified)) {
+                        $modified[] = $pathname;
+                    }
+                }
+            }
+        } finally {
+            config()->set('architect.filament_version', $originalVersion);
         }
 
-        return $detected;
+        return ['deletable' => $deletable, 'modified' => $modified];
     }
 
     /**
@@ -530,5 +597,84 @@ PHP;
         $model = app($modelClass);
 
         return $model instanceof EloquentModel ? $model : null;
+    }
+
+    /**
+     * Compare two v3 resource file contents structurally, ignoring the bodies
+     * of Architect-generated methods (form / table / infolist / getEloquentQuery).
+     *
+     * This allows a blueprint column update (which changes those method bodies)
+     * to still be considered "unmodified" — only user-added or user-changed
+     * methods and properties trigger a `modified` classification.
+     */
+    private static function isStructurallyUnmodified(string $actualContent, string $expectedContent): bool
+    {
+        // Fast path: exact match after whitespace normalisation
+        if (static::normalizeContent($actualContent) === static::normalizeContent($expectedContent)) {
+            return true;
+        }
+
+        /** Methods whose bodies are replaced on every generation and must be ignored during comparison. */
+        $generatedMethods = ['form', 'table', 'infolist', 'getEloquentQuery'];
+
+        $extractSignature = static function (string $content) use ($generatedMethods): string {
+            try {
+                $ast = (new ParserFactory)->createForNewestSupportedVersion()->parse($content);
+
+                if (! $ast) {
+                    return '';
+                }
+
+                $class = (new NodeFinder)->findFirstInstanceOf($ast, Node\Stmt\Class_::class);
+
+                if (! $class) {
+                    return '';
+                }
+
+                $printer = new PrettyPrinter;
+                $parts = [$class->name->toString()];
+
+                foreach ($class->stmts as $stmt) {
+                    if ($stmt instanceof Node\Stmt\ClassMethod) {
+                        if (in_array($stmt->name->toString(), $generatedMethods)) {
+                            // Include only the method signature (without body) so changes
+                            // to parameter types or return types still flag the file.
+                            $bodyless = clone $stmt;
+                            $bodyless->stmts = [];
+                            $parts[] = $printer->prettyPrint([$bodyless]);
+                        } else {
+                            $parts[] = $printer->prettyPrint([$stmt]);
+                        }
+                    } elseif ($stmt instanceof Node\Stmt\Property) {
+                        $parts[] = $printer->prettyPrint([$stmt]);
+                    }
+                }
+
+                return implode('||', $parts);
+
+            } catch (\Throwable) {
+                return '';
+            }
+        };
+
+        $actualSignature = $extractSignature($actualContent);
+        $expectedSignature = $extractSignature($expectedContent);
+
+        // Fall back to "modified" if parsing failed on either side
+        if ($actualSignature === '' || $expectedSignature === '') {
+            return false;
+        }
+
+        return static::normalizeContent($actualSignature) === static::normalizeContent($expectedSignature);
+    }
+
+    /**
+     * Normalise PHP source content for comparison by collapsing all whitespace
+     * sequences to a single space. This makes the comparison resilient to
+     * formatting differences (indentation, line endings, Pint style changes).
+     */
+    private static function normalizeContent(string $content): string
+    {
+        return preg_replace('/\s+/', ' ', trim($content)) ?? '';
     }
 }

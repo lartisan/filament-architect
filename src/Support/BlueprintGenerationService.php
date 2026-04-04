@@ -79,12 +79,33 @@ class BlueprintGenerationService
             SeederGenerator::make()->generate($blueprintData);
         }
 
-        $detectedLegacyFiles = [];
+        $deletedLegacyFiles = [];
+        $modifiedLegacyFiles = [];
 
         if ($blueprintData->generateResource) {
             FilamentResourceGenerator::make()->generate($blueprintData);
 
-            $detectedLegacyFiles = FilamentResourceGenerator::detectLegacyV3Artifacts($blueprintData->modelName);
+            [
+                'deletable' => $deletableLegacyFiles,
+                'modified' => $modifiedLegacyFiles,
+            ] = FilamentResourceGenerator::classifyLegacyV3Artifacts($blueprintData);
+
+            foreach ($deletableLegacyFiles as $path) {
+                File::delete($path);
+                $deletedLegacyFiles[] = $path;
+            }
+
+            // Remove empty legacy Pages directory after deleting all contained files.
+            $legacyDir = GenerationPathResolver::legacyV3ResourceDirectory("{$blueprintData->modelName}Resource");
+            $pagesDir = "{$legacyDir}/Pages";
+
+            if (is_dir($pagesDir) && count(File::files($pagesDir)) === 0) {
+                File::deleteDirectory($pagesDir);
+            }
+
+            if (is_dir($legacyDir) && count(File::allFiles($legacyDir)) === 0) {
+                File::deleteDirectory($legacyDir);
+            }
         }
 
         $storedBlueprint->recordRevision($blueprintData, [
@@ -111,7 +132,8 @@ class BlueprintGenerationService
         return [
             'plan' => $plan,
             'shouldRunMigration' => $shouldRunMigration,
-            'detectedLegacyFiles' => $detectedLegacyFiles,
+            'deletedLegacyFiles' => $deletedLegacyFiles,
+            'modifiedLegacyFiles' => $modifiedLegacyFiles,
         ];
     }
 
