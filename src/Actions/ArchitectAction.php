@@ -39,6 +39,7 @@ use Lartisan\Architect\Support\RegenerationPlanner;
 use Lartisan\Architect\ValueObjects\BlueprintData;
 use Lartisan\Architect\ValueObjects\PlannedSchemaOperation;
 use Lartisan\Architect\ValueObjects\RegenerationPlan;
+use Lartisan\FilamentArchitectPro\ArchitectProServiceProvider;
 
 class ArchitectAction extends Action
 {
@@ -55,8 +56,10 @@ class ArchitectAction extends Action
     {
         parent::setup();
 
-        $this->label('Architect')
-            ->modalHeading('Architect')
+        $isProInstalled = class_exists(ArchitectProServiceProvider::class);
+
+        $this->label($isProInstalled ? 'ArchitectPRO' : 'Architect')
+            ->modalHeading($isProInstalled ? 'ArchitectPRO' : 'Architect')
             ->modalDescription(__('Generate Eloquent model, migration, factory and seeder along with the associated Filament resource.'))
             ->modalIcon(Heroicon::Square3Stack3d)
             ->icon(Heroicon::Square3Stack3d)

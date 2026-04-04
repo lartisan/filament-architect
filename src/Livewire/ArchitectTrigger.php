@@ -3,6 +3,7 @@
 namespace Lartisan\Architect\Livewire;
 
 use Filament\Support\Icons\Heroicon;
+use Lartisan\FilamentArchitectPro\ArchitectProServiceProvider;
 use Livewire\Component;
 
 class ArchitectTrigger extends Component
@@ -24,6 +25,11 @@ class ArchitectTrigger extends Component
     public function getTriggerIcon(): Heroicon
     {
         return Heroicon::Square3Stack3d;
+    }
+
+    public function isProInstalled(): bool
+    {
+        return class_exists(ArchitectProServiceProvider::class);
     }
 
     public function render()
