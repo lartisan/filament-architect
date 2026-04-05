@@ -25,7 +25,6 @@ use Filament\Support\Enums\Width;
 use Filament\Support\Exceptions\Halt;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use Lartisan\Architect\ArchitectPlugin;
 use Lartisan\Architect\Enums\GenerationMode;
