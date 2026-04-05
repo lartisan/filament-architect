@@ -12,6 +12,8 @@ class {{ class }} extends Seeder
      */
     public function run(): void
     {
+        // <architect:seed>
         {{ model_class }}::factory()->count(10)->create();
+        // </architect:seed>
     }
 }

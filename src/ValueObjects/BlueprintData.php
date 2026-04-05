@@ -3,7 +3,9 @@
 namespace Lartisan\Architect\ValueObjects;
 
 use Illuminate\Support\Str;
+use Lartisan\Architect\Enums\GenerationMode;
 use Lartisan\Architect\Exceptions\InvalidBlueprintException;
+use Lartisan\Architect\Support\RelationshipModelResolver;
 
 readonly class BlueprintData
 {
@@ -23,6 +25,10 @@ readonly class BlueprintData
         public bool $runMigration = true,
         public bool $overwriteTable = false,
         public bool $softDeletes = false,
+        public GenerationMode $generationMode = GenerationMode::Merge,
+        public bool $allowDestructiveChanges = false,
+        public bool $allowLikelyRenames = false,
+        public array $meta = [],
         bool $shouldValidate = false,
     ) {
         if ($shouldValidate) {
@@ -39,6 +45,8 @@ readonly class BlueprintData
             ->filter(fn ($col) => ! empty($col['name']) && ! empty($col['type']))
             ->toArray();
 
+        $meta = is_array($data['meta'] ?? null) ? $data['meta'] : [];
+
         return new self(
             tableName: $data['table_name'] ?? '',
             modelName: $data['model_name'] ?? '',
@@ -47,13 +55,17 @@ readonly class BlueprintData
                 fn (array $col) => ColumnDefinition::fromArray($col),
                 $filteredColumns
             ),
-            generateFactory: (bool) ($data['gen_factory'] ?? false),
-            generateSeeder: (bool) ($data['gen_seeder'] ?? false),
-            generateResource: (bool) ($data['gen_resource'] ?? false),
+            generateFactory: (bool) ($data['gen_factory'] ?? $meta['gen_factory'] ?? false),
+            generateSeeder: (bool) ($data['gen_seeder'] ?? $meta['gen_seeder'] ?? false),
+            generateResource: (bool) ($data['gen_resource'] ?? $meta['gen_resource'] ?? false),
             runMigration: (bool) ($data['run_migration'] ?? false),
             overwriteTable: (bool) ($data['overwrite_table'] ?? false),
             softDeletes: (bool) ($data['soft_deletes'] ?? false),
-            shouldValidate: $shouldValidate
+            generationMode: GenerationMode::tryFrom((string) ($data['generation_mode'] ?? $meta['generation_mode'] ?? GenerationMode::default()->value)) ?? GenerationMode::default(),
+            allowDestructiveChanges: (bool) ($data['allow_destructive_changes'] ?? $meta['allow_destructive_changes'] ?? false),
+            allowLikelyRenames: (bool) ($data['allow_likely_renames'] ?? $meta['allow_likely_renames'] ?? false),
+            meta: $meta,
+            shouldValidate: $shouldValidate,
         );
     }
 
@@ -65,11 +77,22 @@ readonly class BlueprintData
             'primary_key_type' => $this->primaryKeyType,
             'columns' => array_map(fn (ColumnDefinition $col) => $col->toArray(), $this->columns),
             'soft_deletes' => $this->softDeletes,
-            'meta' => [
+            'gen_factory' => $this->generateFactory,
+            'gen_seeder' => $this->generateSeeder,
+            'gen_resource' => $this->generateResource,
+            'run_migration' => $this->runMigration,
+            'overwrite_table' => $this->overwriteTable,
+            'generation_mode' => $this->generationMode->value,
+            'allow_destructive_changes' => $this->allowDestructiveChanges,
+            'allow_likely_renames' => $this->allowLikelyRenames,
+            'meta' => array_merge($this->meta, [
                 'gen_factory' => $this->generateFactory,
                 'gen_seeder' => $this->generateSeeder,
                 'gen_resource' => $this->generateResource,
-            ],
+                'generation_mode' => $this->generationMode->value,
+                'allow_destructive_changes' => $this->allowDestructiveChanges,
+                'allow_likely_renames' => $this->allowLikelyRenames,
+            ]),
         ];
     }
 
@@ -100,16 +123,16 @@ readonly class BlueprintData
 
     public function getTraitImports(): string
     {
-        $imports = ['use Illuminate\Database\Eloquent\Factories\HasFactory;'];
+        $imports = ['use Illuminate\\Database\\Eloquent\\Factories\\HasFactory;'];
 
         if ($this->primaryKeyType === 'uuid') {
-            $imports[] = 'use Illuminate\Database\Eloquent\Concerns\HasUuids;';
+            $imports[] = 'use Illuminate\\Database\\Eloquent\\Concerns\\HasUuids;';
         } elseif ($this->primaryKeyType === 'ulid') {
-            $imports[] = 'use Illuminate\Database\Eloquent\Concerns\HasUlids;';
+            $imports[] = 'use Illuminate\\Database\\Eloquent\\Concerns\\HasUlids;';
         }
 
         if ($this->softDeletes) {
-            $imports[] = 'use Illuminate\Database\Eloquent\SoftDeletes;';
+            $imports[] = 'use Illuminate\\Database\\Eloquent\\SoftDeletes;';
         }
 
         return implode("\n", $imports);
@@ -132,10 +155,10 @@ readonly class BlueprintData
         $nameLower = strtolower($column->name);
         $suffixes = ['_id', '_uuid', '_ulid'];
 
-        if ($column->type === 'foreignId' || Str::endsWith($nameLower, $suffixes)) {
-            $baseName = str_replace($suffixes, '', $nameLower);
-            $modelName = Str::studly($baseName);
-            $modelNamespace = config('architect.models_namespace', 'App\\Models');
+        if (in_array($column->type, ['foreignId', 'foreignUuid', 'foreignUlid'], true) || Str::endsWith($nameLower, $suffixes)) {
+            $relationshipName = $this->extractRelationshipName($nameLower);
+            $modelName = app(RelationshipModelResolver::class)->resolveModelName($column, $relationshipName ?: null);
+            $modelNamespace = (string) config('architect.models_namespace', config('architect.namespace', 'App\\Models'));
 
             return "\\{$modelNamespace}\\{$modelName}::factory()";
         }
@@ -166,6 +189,17 @@ readonly class BlueprintData
 
             default => '$this->faker->word()',
         };
+    }
+
+    private function extractRelationshipName(string $columnName): ?string
+    {
+        foreach (['_id', '_uuid', '_ulid'] as $suffix) {
+            if (Str::endsWith($columnName, $suffix)) {
+                return Str::camel(Str::beforeLast($columnName, $suffix));
+            }
+        }
+
+        return null;
     }
 
     private function validate(): void

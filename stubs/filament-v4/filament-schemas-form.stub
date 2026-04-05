@@ -1,0 +1,17 @@
+<?php
+
+namespace {{ schemas_namespace }};
+
+use Filament\Forms;
+use Filament\Schemas\Schema;
+
+class {{ model_class }}Form
+{
+    public static function configure(Schema $schema): Schema
+    {
+        return $schema
+            ->components([
+                {{ form_schema }}
+            ]);
+    }
+}

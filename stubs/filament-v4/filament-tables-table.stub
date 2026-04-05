@@ -1,0 +1,35 @@
+<?php
+
+namespace {{ tables_namespace }};
+
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Tables;
+use Filament\Tables\Table;
+{{ soft_deletes_import }}
+
+class {{ model_plural_class }}Table
+{
+    public static function configure(Table $table): Table
+    {
+        return $table
+            ->columns([
+                {{ table_columns }}
+            ])
+            ->filters([
+                {{ soft_deletes_filter }}
+            ])
+            ->recordActions([
+                EditAction::make(),
+                DeleteAction::make(),
+            ])
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
+                    {{ soft_deletes_bulk_actions }}
+                ]),
+            ]);
+    }
+}

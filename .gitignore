@@ -1,6 +1,9 @@
 /.github
 /.idea
+/docs
 /.phpunit.cache/
 /vendor/
 .phpunit.result.cache
 ROADMAP.md
+OSS_PREMIUM_FOUNDATION_PLAN.md
+TODO.md

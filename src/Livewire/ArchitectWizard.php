@@ -10,6 +10,8 @@ use Filament\Forms\Contracts\HasForms;
 use Filament\Notifications\Notification;
 use Lartisan\Architect\Actions\ArchitectAction;
 use Lartisan\Architect\Models\Blueprint as ArchitectBlueprint;
+use Lartisan\Architect\Support\ArchitectMigrationStatus;
+use Lartisan\Architect\Support\BlueprintDeletionService;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
@@ -54,17 +56,26 @@ class ArchitectWizard extends Component implements HasActions, HasForms
             return;
         }
 
+        if (! $this->ensureMigrationsAreReady()) {
+            return;
+        }
+
         $this->mountAction('openArchitect');
     }
 
     #[On('load-blueprint')]
     public function loadBlueprint(int $id): void
     {
+        if (! $this->ensureMigrationsAreReady()) {
+            return;
+        }
+
         $blueprint = ArchitectBlueprint::find($id);
 
         if ($blueprint) {
             $data = $blueprint->toFormData();
 
+            $this->openArchitect();
             $this->getMountedActionSchema()->fill($data);
 
             Notification::make()
@@ -74,13 +85,60 @@ class ArchitectWizard extends Component implements HasActions, HasForms
         }
     }
 
+    #[On('load-blueprint-data')]
+    public function loadBlueprintData(array $data): void
+    {
+        if (! $this->ensureMigrationsAreReady()) {
+            return;
+        }
+
+        $this->openArchitect();
+        $this->getMountedActionSchema()->fill($data);
+
+        Notification::make()
+            ->title(__('Blueprint revision loaded!'))
+            ->success()
+            ->send();
+    }
+
     public function deleteBlueprint(int $id): void
     {
-        ArchitectBlueprint::destroy($id);
+        if (! $this->ensureMigrationsAreReady()) {
+            return;
+        }
+
+        $blueprint = ArchitectBlueprint::find($id);
+
+        if ($blueprint === null) {
+            return;
+        }
+
+        app(BlueprintDeletionService::class)->deleteSnapshotOnly($blueprint);
 
         Notification::make()
             ->title('Blueprint deleted!')
             ->success()
+            ->send();
+    }
+
+    protected function ensureMigrationsAreReady(): bool
+    {
+        if (app(ArchitectMigrationStatus::class)->isReady()) {
+            return true;
+        }
+
+        $this->notifyMissingMigrations();
+
+        return false;
+    }
+
+    protected function notifyMissingMigrations(): void
+    {
+        Notification::make()
+            ->title(__('Architect migrations are missing'))
+            ->body(__('Run `php artisan architect:upgrade` to publish migrations, migrate, and backfill revisions in one step.'))
+            ->warning()
+            ->persistent()
             ->send();
     }
 }

@@ -2,20 +2,24 @@
 
 namespace Lartisan\Architect\Livewire;
 
+use Filament\Actions\Action;
 use Filament\Actions\Concerns\InteractsWithActions;
 use Filament\Actions\Contracts\HasActions;
 use Filament\Actions\DeleteAction;
+use Filament\Facades\Filament;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
+use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Schema;
 use Lartisan\Architect\Models\Blueprint;
+use Lartisan\Architect\Support\ArchitectUiExtensionRegistry;
+use Lartisan\Architect\Support\BlueprintDeletionService;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 class BlueprintsTable extends Component implements HasActions, HasForms, HasTable
@@ -26,15 +30,15 @@ class BlueprintsTable extends Component implements HasActions, HasForms, HasTabl
 
     public function table(Table $table): Table
     {
+        $extensionRecordActions = app(ArchitectUiExtensionRegistry::class)->blueprintsTableRecordActions();
+
         return $table
             ->query(Blueprint::query()->latest())
-            ->columns([
-                TextColumn::make('table_name')->label(__('Table'))->searchable(),
-                TextColumn::make('model_name')->label(__('Model')),
-                TextColumn::make('created_at')->dateTime()->label(__('Created At')),
-            ])
+            ->columns($this->getTableColumns())
             ->recordActions([
-                /*\Filament\Actions\Action::make('load')
+                ...$extensionRecordActions,
+
+                Action::make('load')
                     ->label(__('Load'))
                     ->icon('heroicon-m-arrow-path')
                     ->color('success')
@@ -42,11 +46,13 @@ class BlueprintsTable extends Component implements HasActions, HasForms, HasTabl
                         $this->dispatch('load-blueprint', id: $record->id)
                             ->to(ArchitectWizard::class);
 
-                        \Filament\Notifications\Notification::make()
+                        $this->activateFirstTab();
+
+                        Notification::make()
                             ->title(__('Blueprint loaded: :table', ['table' => $record->table_name]))
                             ->success()
                             ->send();
-                    }),*/
+                    }),
 
                 DeleteAction::make()
                     ->requiresConfirmation()
@@ -55,8 +61,49 @@ class BlueprintsTable extends Component implements HasActions, HasForms, HasTabl
                     ->modalContent(view('architect::blueprint-delete'))
                     ->action(fn (Blueprint $record) => $this->deleteBlueprint($record))
                     ->successNotificationTitle(__('Resource and associated files deleted successfully')),
+            ])
+            ->emptyStateHeading(__('No blueprints yet, create one!'))
+            ->emptyStateActions([
+                Action::make('create_blueprint')
+                    ->action(fn () => $this->activateFirstTab()),
             ]);
     }
+
+    /**
+     * @return array<int, TextColumn|IconColumn>
+     */
+    protected function getTableColumns(): array
+    {
+        return [
+            TextColumn::make('table_name')
+                ->label(__('Table'))
+                ->searchable(),
+            TextColumn::make('model_name')
+                ->label(__('Model'))
+                ->badge()
+                ->color('gray'),
+            TextColumn::make('columns_count')
+                ->label(__('Columns'))
+                ->badge()
+                ->color('primary')
+                ->state(fn (Blueprint $record): int => count($record->columns ?? [])),
+            IconColumn::make('soft_deletes')
+                ->label(__('Soft Deletes'))
+                ->boolean(),
+            TextColumn::make('created_at')
+                ->label(__('Created At'))
+                ->dateTime()
+                ->sortable(),
+        ];
+    }
+
+    public function activateFirstTab(): void
+    {
+        $this->dispatch('activate-first-tab');
+    }
+
+    #[On('architect-blueprint-updated')]
+    public function refreshBlueprintTable(): void {}
 
     public function render()
     {
@@ -65,38 +112,18 @@ class BlueprintsTable extends Component implements HasActions, HasForms, HasTabl
 
     public function deleteBlueprint(Blueprint $record): void
     {
-        $modelName = $record->model_name;
-        $tableName = $record->table_name;
+        app(BlueprintDeletionService::class)->deleteBlueprintAndArtifacts($record);
 
-        Schema::dropIfExists($tableName);
-        DB::table('migrations')
-            ->where('migration', 'like', "%_create_{$tableName}_table")
-            ->delete();
+        $this->redirect($this->getPanelRootUrl(), navigate: true);
+    }
 
-        $filesToDelete = [
-            app_path("Models/{$modelName}.php"),
-            database_path("factories/{$modelName}Factory.php"),
-            database_path("seeders/{$modelName}Seeder.php"),
-            app_path("Filament/Resources/{$modelName}Resource.php"),
-        ];
+    private function getPanelRootUrl(): string
+    {
+        $panel = Filament::getCurrentOrDefaultPanel();
+        $path = trim($panel?->getPath() ?? '', '/');
 
-        $resourceDirectory = app_path("Filament/Resources/{$modelName}Resource");
-
-        foreach ($filesToDelete as $file) {
-            if (File::exists($file)) {
-                File::delete($file);
-            }
-        }
-
-        if (File::isDirectory($resourceDirectory)) {
-            File::deleteDirectory($resourceDirectory);
-        }
-
-        $migrationFiles = File::glob(database_path("migrations/*_create_{$tableName}_table.php"));
-        foreach ($migrationFiles as $migration) {
-            File::delete($migration);
-        }
-
-        $record->delete();
+        return $path === ''
+            ? url('/')
+            : url('/'.$path);
     }
 }

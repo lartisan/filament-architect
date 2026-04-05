@@ -2,6 +2,8 @@
 
 namespace Lartisan\Architect\Tests\Feature;
 
+use Filament\Actions\Action;
+use Filament\Tables\Table;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
@@ -11,7 +13,11 @@ use Lartisan\Architect\Generators\FilamentResourceGenerator;
 use Lartisan\Architect\Generators\MigrationGenerator;
 use Lartisan\Architect\Generators\ModelGenerator;
 use Lartisan\Architect\Generators\SeederGenerator;
+use Lartisan\Architect\Livewire\BlueprintsTable;
 use Lartisan\Architect\Models\Blueprint;
+use Lartisan\Architect\Support\ArchitectUiExtensionRegistry;
+use Lartisan\Architect\Support\BlueprintDeletionService;
+use Lartisan\Architect\Support\GenerationPathResolver;
 use Lartisan\Architect\Tests\TestCase;
 use Lartisan\Architect\ValueObjects\BlueprintData;
 
@@ -21,11 +27,20 @@ beforeEach(function () {
     // Load Laravel migrations (users table, etc.)
     $this->loadLaravelMigrations();
 
+    config()->set('architect.models_namespace', blueprintsTableModelsNamespace());
+    config()->set('architect.factories_namespace', blueprintsTableFactoriesNamespace());
+    config()->set('architect.seeders_namespace', blueprintsTableSeedersNamespace());
+    config()->set('architect.resources_namespace', blueprintsTableResourcesNamespace());
+
+    app(ArchitectUiExtensionRegistry::class)->flush();
+
     // Clean up any leftover files from previous tests
     cleanupTestFiles();
 });
 
 afterEach(function () {
+    app(ArchitectUiExtensionRegistry::class)->flush();
+
     // Cleanup all generated files
     cleanupTestFiles();
 });
@@ -40,77 +55,40 @@ function cleanupTestFiles(): void
             Schema::drop($table);
         }
 
-        // Clean migration records
         DB::table('migrations')
-            ->where('migration', 'like', "%_create_{$table}_table")
+            ->where('migration', 'like', "%_{$table}_table")
             ->delete();
     }
 
     foreach ($models as $model) {
-        // Clean model files
-        @unlink(app_path("Models/{$model}.php"));
+        @unlink(GenerationPathResolver::model($model));
+        @unlink(GenerationPathResolver::factory("{$model}Factory"));
+        @unlink(GenerationPathResolver::seeder("{$model}Seeder"));
+        @unlink(GenerationPathResolver::resource("{$model}Resource"));
 
-        // Clean factory files
-        @unlink(database_path("factories/{$model}Factory.php"));
-
-        // Clean seeder files
-        @unlink(database_path("seeders/{$model}Seeder.php"));
-
-        // Clean resource files
-        @unlink(app_path("Filament/Resources/{$model}Resource.php"));
-
-        // Clean resource directory
-        $resourceDir = app_path("Filament/Resources/{$model}Resource");
+        $resourceDir = GenerationPathResolver::resourceDirectory("{$model}Resource");
         if (File::isDirectory($resourceDir)) {
             File::deleteDirectory($resourceDir);
         }
     }
 
-    // Clean migration files
+    foreach ([
+        blueprintsTableModelsRoot(),
+        blueprintsTableFactoriesRoot(),
+        blueprintsTableSeedersRoot(),
+        blueprintsTableResourcesRoot(),
+    ] as $directory) {
+        if (File::isDirectory($directory)) {
+            File::deleteDirectory($directory);
+        }
+    }
+
     $migrations = File::glob(database_path('migrations/*.php'));
     foreach ($migrations as $migration) {
-        if (preg_match('/_create_(products|test_models|articles)_table\.php$/', $migration)) {
+        if (preg_match('/_(create|sync)_(products|test_models|articles)_table\.php$/', $migration)) {
             @unlink($migration);
         }
     }
-}
-
-// Helper function to replicate BlueprintsTable@deleteBlueprint logic
-function deleteBlueprint(Blueprint $record): void
-{
-    $modelName = $record->model_name;
-    $tableName = $record->table_name;
-
-    Schema::dropIfExists($tableName);
-    DB::table('migrations')
-        ->where('migration', 'like', "%_create_{$tableName}_table")
-        ->delete();
-
-    $filesToDelete = [
-        app_path("Models/{$modelName}.php"),
-        database_path("factories/{$modelName}Factory.php"),
-        database_path("seeders/{$modelName}Seeder.php"),
-        app_path("Filament/Resources/{$modelName}Resource.php"),
-    ];
-
-    $resourceDirectory = app_path("Filament/Resources/{$modelName}Resource");
-
-    foreach ($filesToDelete as $file) {
-        if (File::exists($file)) {
-            File::delete($file);
-        }
-    }
-
-    if (File::isDirectory($resourceDirectory)) {
-        File::deleteDirectory($resourceDirectory);
-    }
-
-    $migrationFiles = File::glob(database_path("migrations/*_create_{$tableName}_table.php"));
-    foreach ($migrationFiles as $migration) {
-        File::delete($migration);
-    }
-
-    $record->delete();
 }
 
 it('deletes blueprint and all associated files when delete action is called', function () {
@@ -144,7 +122,7 @@ it('deletes blueprint and all associated files when delete action is called', fu
     expect(File::exists($resourcePath))->toBeTrue('Resource file should exist');
 
     // Run migration to create table
-    Artisan::call('migrate', ['--path' => 'database/migrations']);
+    migrateBlueprintsTableTestMigration($migrationPath);
 
     // Verify table was created
     expect(Schema::hasTable('products'))->toBeTrue('Table should exist in database');
@@ -165,13 +143,13 @@ it('deletes blueprint and all associated files when delete action is called', fu
     ]);
 
     // Verify resource pages exist
-    $resourceDir = app_path('Filament/Resources/ProductResource');
+    $resourceDir = GenerationPathResolver::resourceDirectory('ProductResource');
     expect(File::exists("$resourceDir/Pages/ListProducts.php"))->toBeTrue('List page should exist');
     expect(File::exists("$resourceDir/Pages/CreateProduct.php"))->toBeTrue('Create page should exist');
     expect(File::exists("$resourceDir/Pages/EditProduct.php"))->toBeTrue('Edit page should exist');
 
     // Delete blueprint
-    deleteBlueprint($blueprint);
+    app(BlueprintDeletionService::class)->deleteBlueprintAndArtifacts($blueprint);
 
     // Verify blueprint record was deleted from database
     expect(Blueprint::find($blueprint->id))->toBeNull('Blueprint record should be deleted from database');
@@ -226,7 +204,7 @@ it('handles deletion gracefully when some files do not exist', function () {
     $modelPath = (new ModelGenerator)->generate($blueprintData);
 
     // Run migration
-    Artisan::call('migrate', ['--path' => 'database/migrations']);
+    migrateBlueprintsTableTestMigration($migrationPath);
 
     // Verify initial state
     expect(File::exists($modelPath))->toBeTrue();
@@ -234,7 +212,7 @@ it('handles deletion gracefully when some files do not exist', function () {
     expect(Schema::hasTable('test_models'))->toBeTrue();
 
     // Delete blueprint - should not throw errors even though factory/seeder/resource don't exist
-    deleteBlueprint($blueprint);
+    app(BlueprintDeletionService::class)->deleteBlueprintAndArtifacts($blueprint);
 
     // Verify cleanup
     expect(Blueprint::find($blueprint->id))->toBeNull();
@@ -255,7 +233,7 @@ it('deletes multiple blueprints independently', function () {
 
     $migrationPath1 = (new MigrationGenerator)->generate($blueprint1Data);
     $modelPath1 = (new ModelGenerator)->generate($blueprint1Data);
-    Artisan::call('migrate', ['--path' => 'database/migrations']);
+    migrateBlueprintsTableTestMigration($migrationPath1);
 
     $blueprint1 = Blueprint::create([
         'table_name' => 'products',
@@ -276,7 +254,7 @@ it('deletes multiple blueprints independently', function () {
 
     $migrationPath2 = (new MigrationGenerator)->generate($blueprint2Data);
     $modelPath2 = (new ModelGenerator)->generate($blueprint2Data);
-    Artisan::call('migrate', ['--path' => 'database/migrations']);
+    migrateBlueprintsTableTestMigration($migrationPath2);
 
     $blueprint2 = Blueprint::create([
         'table_name' => 'articles',
@@ -293,7 +271,7 @@ it('deletes multiple blueprints independently', function () {
     expect(File::exists($modelPath2))->toBeTrue();
 
     // Delete first blueprint
-    deleteBlueprint($blueprint1);
+    app(BlueprintDeletionService::class)->deleteBlueprintAndArtifacts($blueprint1);
 
     // Verify first is deleted but second remains
     expect(Blueprint::find($blueprint1->id))->toBeNull();
@@ -304,10 +282,130 @@ it('deletes multiple blueprints independently', function () {
     expect(File::exists($modelPath2))->toBeTrue();
 
     // Delete second blueprint
-    deleteBlueprint($blueprint2);
+    app(BlueprintDeletionService::class)->deleteBlueprintAndArtifacts($blueprint2);
 
     // Verify second is also deleted
     expect(Blueprint::find($blueprint2->id))->toBeNull();
     expect(Schema::hasTable('articles'))->toBeFalse();
     expect(File::exists($modelPath2))->toBeFalse();
 });
+it('dispatches the first-tab activation event for the empty-state create action', function () {
+    $component = \Mockery::mock(BlueprintsTable::class)->makePartial();
+    $component->shouldReceive('dispatch')
+        ->once()
+        ->with('activate-first-tab');
+
+    $component->activateFirstTab();
+});
+
+it('redirects to the panel root after deleting a blueprint', function () {
+    $blueprint = Blueprint::create([
+        'table_name' => 'products',
+        'model_name' => 'Product',
+        'primary_key_type' => 'id',
+        'columns' => [
+            ['name' => 'name', 'type' => 'string'],
+        ],
+        'soft_deletes' => false,
+    ]);
+
+    $component = \Mockery::mock(BlueprintsTable::class)->makePartial();
+    $component->shouldReceive('redirect')
+        ->once()
+        ->with(url('/admin'), true);
+
+    $component->deleteBlueprint($blueprint);
+
+    expect(Blueprint::find($blueprint->id))->toBeNull();
+});
+
+it('mounts registered record actions in the blueprints table', function () {
+    app(ArchitectUiExtensionRegistry::class)
+        ->registerBlueprintsTableRecordActions(fn (): Action => Action::make('revision_history'));
+
+    $component = app(BlueprintsTable::class);
+    $table = $component->table(Table::make($component));
+
+    expect($table->getAction('revision_history'))->toBeInstanceOf(Action::class);
+});
+
+it('can delete only the stored blueprint snapshot without deleting generated artifacts', function () {
+    $blueprintData = BlueprintData::fromArray([
+        'table_name' => 'products',
+        'model_name' => 'Product',
+        'columns' => [
+            ['name' => 'name', 'type' => 'string'],
+        ],
+        'gen_factory' => false,
+        'gen_seeder' => false,
+        'gen_resource' => false,
+    ]);
+
+    $migrationPath = (new MigrationGenerator)->generate($blueprintData);
+    $modelPath = (new ModelGenerator)->generate($blueprintData);
+
+    migrateBlueprintsTableTestMigration($migrationPath);
+
+    $blueprint = Blueprint::create([
+        'table_name' => 'products',
+        'model_name' => 'Product',
+        'primary_key_type' => 'id',
+        'columns' => [['name' => 'name', 'type' => 'string']],
+        'soft_deletes' => false,
+    ]);
+
+    app(BlueprintDeletionService::class)->deleteSnapshotOnly($blueprint);
+
+    expect(Blueprint::find($blueprint->id))->toBeNull()
+        ->and(Schema::hasTable('products'))->toBeTrue()
+        ->and(File::exists($modelPath))->toBeTrue()
+        ->and(File::exists($migrationPath))->toBeTrue();
+});
+
+function blueprintsTableModelsNamespace(): string
+{
+    return 'App\\Testing\\BlueprintsTable\\Models';
+}
+
+function blueprintsTableFactoriesNamespace(): string
+{
+    return 'Database\\Testing\\BlueprintsTable\\Factories';
+}
+
+function blueprintsTableSeedersNamespace(): string
+{
+    return 'Database\\Testing\\BlueprintsTable\\Seeders';
+}
+
+function blueprintsTableResourcesNamespace(): string
+{
+    return 'App\\Testing\\BlueprintsTable\\Filament\\Resources';
+}
+
+function blueprintsTableModelsRoot(): string
+{
+    return dirname(GenerationPathResolver::model('Product'));
+}
+
+function blueprintsTableFactoriesRoot(): string
+{
+    return dirname(GenerationPathResolver::factory('ProductFactory'));
+}
+
+function blueprintsTableSeedersRoot(): string
+{
+    return dirname(GenerationPathResolver::seeder('ProductSeeder'));
+}
+
+function blueprintsTableResourcesRoot(): string
+{
+    return dirname(dirname(GenerationPathResolver::resource('ProductResource')));
+}
+
+function migrateBlueprintsTableTestMigration(string $path): void
+{
+    Artisan::call('migrate', [
+        '--path' => $path,
+        '--realpath' => true,
+    ]);
+}

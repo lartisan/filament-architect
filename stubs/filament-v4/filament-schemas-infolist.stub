@@ -1,0 +1,17 @@
+<?php
+
+namespace {{ schemas_namespace }};
+
+use Filament\Infolists;
+use Filament\Schemas\Schema;
+
+class {{ model_class }}Infolist
+{
+    public static function configure(Schema $schema): Schema
+    {
+        return $schema
+            ->components([
+                {{ infolist_schema }}
+            ]);
+    }
+}

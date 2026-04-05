@@ -2,14 +2,34 @@
 
 namespace Lartisan\Architect\Generators;
 
+use Illuminate\Database\Eloquent\Model as EloquentModel;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Lartisan\Architect\Enums\GenerationMode;
+use Lartisan\Architect\Support\FilamentResourceUpdater;
+use Lartisan\Architect\Support\GenerationPathResolver;
 use Lartisan\Architect\ValueObjects\BlueprintData;
 use Lartisan\Architect\ValueObjects\ColumnDefinition;
+use PhpParser\Node;
+use PhpParser\NodeFinder;
+use PhpParser\ParserFactory;
+use PhpParser\PrettyPrinter\Standard as PrettyPrinter;
 
 readonly class FilamentResourceGenerator extends AbstractGenerator
 {
     private const array FOREIGN_COLUMN_SUFFIXES = ['_id', '_uuid', '_ulid'];
+
+    private const array PREFERRED_RELATIONSHIP_TITLE_COLUMNS = [
+        'name',
+        'title',
+        'label',
+        'full_name',
+        'display_name',
+        'email',
+        'slug',
+        'code',
+    ];
 
     protected function getContent(BlueprintData $blueprint): string
     {
@@ -17,21 +37,142 @@ readonly class FilamentResourceGenerator extends AbstractGenerator
         $modelName = $blueprint->modelName;
         $modelPlural = Str::plural($modelName);
 
+        $baseNamespace = (string) config('architect.resources_namespace', 'App\\Filament\\Resources');
+        $resourceNamespace = GenerationPathResolver::isFilamentV4()
+            ? GenerationPathResolver::resourceNamespace($modelName)
+            : $baseNamespace;
+
         return $this->replacePlaceholders($stub, [
-            '{{ namespace }}' => config('architect.resources_namespace', 'App\\Filament\\Resources'),
-            '{{ model_namespace }}' => config('architect.models_namespace', 'App\\Models'),
+            // Namespace placeholders — v3 uses {{ namespace }}, v4 uses {{ resource_namespace }}
+            '{{ namespace }}' => $baseNamespace,
+            '{{ resource_namespace }}' => $resourceNamespace,
+            '{{ schemas_namespace }}' => GenerationPathResolver::isFilamentV4()
+                ? GenerationPathResolver::resourceSchemasNamespace($modelName)
+                : $baseNamespace,
+            '{{ tables_namespace }}' => GenerationPathResolver::isFilamentV4()
+                ? GenerationPathResolver::resourceTablesNamespace($modelName)
+                : $baseNamespace,
+            // Model / resource identifiers
+            '{{ model_namespace }}' => GenerationPathResolver::modelsNamespace(),
             '{{ model_class }}' => $modelName,
             '{{ model_plural_class }}' => $modelPlural,
             '{{ resource_class }}' => "{$modelName}Resource",
+            // Inline schema content — used by v3 resource stub; harmlessly ignored by v4 thin resource stub
             '{{ form_schema }}' => $this->generateFormSchema($blueprint),
             '{{ table_columns }}' => $this->generateTableColumns($blueprint),
             '{{ infolist_schema }}' => $this->generateInfolistSchema($blueprint),
-            '{{ pages_namespace }}' => config('architect.resources_namespace', 'App\\Filament\\Resources')."\\{$modelName}Resource\\Pages",
-            // Soft Deletes
-            '{{ soft_deletes_import }}' => $blueprint->softDeletes ? "use Illuminate\Database\Eloquent\Builder;\nuse Illuminate\Database\Eloquent\SoftDeletingScope;" : '',
+            // Soft deletes
+            '{{ soft_deletes_import }}' => $blueprint->softDeletes
+                ? "use Illuminate\Database\Eloquent\Builder;\nuse Illuminate\Database\Eloquent\SoftDeletingScope;"
+                : '',
             '{{ soft_deletes_filter }}' => $blueprint->softDeletes ? "Tables\Filters\TrashedFilter::make()," : '//',
-            '{{ soft_deletes_bulk_actions }}' => $blueprint->softDeletes ? "\Filament\Actions\ForceDeleteBulkAction::make(),\n                    \Filament\Actions\RestoreBulkAction::make()," : '',
+            '{{ soft_deletes_bulk_actions }}' => $blueprint->softDeletes
+                ? "\Filament\Actions\ForceDeleteBulkAction::make(),\n                    \Filament\Actions\RestoreBulkAction::make(),"
+                : '',
             '{{ eloquent_query }}' => $this->generateEloquentQuery($blueprint),
+        ]);
+    }
+
+    // -------------------------------------------------------------------------
+    // Public preview API (used by ArchitectAction::reviewStep sections)
+    // -------------------------------------------------------------------------
+
+    /**
+     * For v3: returns the single monolithic resource file content.
+     * For v4: returns all four generated files concatenated with file-path headers.
+     */
+    public function preview(BlueprintData $blueprint): string
+    {
+        if (! GenerationPathResolver::isFilamentV4()) {
+            return $this->getContent($blueprint);
+        }
+
+        $modelName = $blueprint->modelName;
+        $modelPlural = Str::pluralStudly($modelName);
+
+        $files = [
+            "{$modelName}Resource.php" => $this->getContent($blueprint),
+            "Schemas/{$modelName}Form.php" => $this->getFormContent($blueprint),
+            "Schemas/{$modelName}Infolist.php" => $this->getInfolistContent($blueprint),
+            "Tables/{$modelPlural}Table.php" => $this->getTableContent($blueprint),
+        ];
+
+        return collect($files)
+            ->map(fn (string $content, string $path) => "// ── {$path} ──\n\n{$content}")
+            ->implode("\n\n\n");
+    }
+
+    public function previewResource(BlueprintData $blueprint): string
+    {
+        return $this->getContent($blueprint);
+    }
+
+    public function previewForm(BlueprintData $blueprint): string
+    {
+        return $this->getFormContent($blueprint);
+    }
+
+    public function previewInfolist(BlueprintData $blueprint): string
+    {
+        return $this->getInfolistContent($blueprint);
+    }
+
+    public function previewTable(BlueprintData $blueprint): string
+    {
+        return $this->getTableContent($blueprint);
+    }
+
+    // -------------------------------------------------------------------------
+    // Protected content builders (protected for testability & extensibility)
+    // -------------------------------------------------------------------------
+
+    protected function getFormContent(BlueprintData $blueprint): string
+    {
+        $modelName = $blueprint->modelName;
+        $baseNamespace = (string) config('architect.resources_namespace', 'App\\Filament\\Resources');
+
+        return $this->replacePlaceholders($this->getStub('filament-schemas-form'), [
+            '{{ schemas_namespace }}' => GenerationPathResolver::isFilamentV4()
+                ? GenerationPathResolver::resourceSchemasNamespace($modelName)
+                : $baseNamespace,
+            '{{ model_class }}' => $modelName,
+            '{{ form_schema }}' => $this->generateFormSchema($blueprint),
+        ]);
+    }
+
+    protected function getInfolistContent(BlueprintData $blueprint): string
+    {
+        $modelName = $blueprint->modelName;
+        $baseNamespace = (string) config('architect.resources_namespace', 'App\\Filament\\Resources');
+
+        return $this->replacePlaceholders($this->getStub('filament-schemas-infolist'), [
+            '{{ schemas_namespace }}' => GenerationPathResolver::isFilamentV4()
+                ? GenerationPathResolver::resourceSchemasNamespace($modelName)
+                : $baseNamespace,
+            '{{ model_class }}' => $modelName,
+            '{{ infolist_schema }}' => $this->generateInfolistSchema($blueprint),
+        ]);
+    }
+
+    protected function getTableContent(BlueprintData $blueprint): string
+    {
+        $modelName = $blueprint->modelName;
+        $modelPlural = Str::plural($modelName);
+        $baseNamespace = (string) config('architect.resources_namespace', 'App\\Filament\\Resources');
+
+        return $this->replacePlaceholders($this->getStub('filament-tables-table'), [
+            '{{ tables_namespace }}' => GenerationPathResolver::isFilamentV4()
+                ? GenerationPathResolver::resourceTablesNamespace($modelName)
+                : $baseNamespace,
+            '{{ model_class }}' => $modelName,
+            '{{ model_plural_class }}' => $modelPlural,
+            '{{ table_columns }}' => $this->generateTableColumns($blueprint),
+            // Bulk actions use FQCN (\Filament\Actions\...) so no extra imports needed
+            '{{ soft_deletes_import }}' => '',
+            '{{ soft_deletes_filter }}' => $blueprint->softDeletes ? "Tables\Filters\TrashedFilter::make()," : '//',
+            '{{ soft_deletes_bulk_actions }}' => $blueprint->softDeletes
+                ? "\Filament\Actions\ForceDeleteBulkAction::make(),\n                    \Filament\Actions\RestoreBulkAction::make(),"
+                : '',
         ]);
     }
 
@@ -77,9 +218,10 @@ PHP;
                 /** @var ColumnDefinition $col */
                 if ($this->isForeignColumn($col)) {
                     $relationshipName = $this->extractRelationshipName($col->name);
+                    $titleAttribute = $this->resolveRelationshipDisplayColumn($col, $relationshipName);
 
                     $component = "Forms\Components\Select::make('{$col->name}')
-                    ->relationship('{$relationshipName}', 'name')";
+                    ->relationship('{$relationshipName}', '{$titleAttribute}')";
 
                     if ($col->index) {
                         $component .= "\n                    ->searchable()";
@@ -117,8 +259,9 @@ PHP;
                 /** @var ColumnDefinition $col */
                 if ($this->isForeignColumn($col)) {
                     $relationshipName = $this->extractRelationshipName($col->name);
+                    $titleAttribute = $this->resolveRelationshipDisplayColumn($col, $relationshipName);
 
-                    $columnClass = "Tables\Columns\TextColumn::make('{$relationshipName}.name')\n                    ->label('".Str::headline($relationshipName)."')";
+                    $columnClass = "Tables\Columns\TextColumn::make('{$relationshipName}.{$titleAttribute}')\n                    ->label('".Str::headline($relationshipName)."')";
                 } else {
                     $columnClass = match ($col->type) {
                         'boolean' => "Tables\Columns\IconColumn::make('{$col->name}')->boolean()",
@@ -154,10 +297,10 @@ PHP;
 
     public function generate(BlueprintData $blueprint): string
     {
-        $resourceName = "{$blueprint->modelName}Resource";
-        $basePath = app_path('Filament/Resources');
-        $resourceDir = "{$basePath}/{$resourceName}";
-        $resourcePath = "{$basePath}/{$resourceName}.php";
+        $modelName = $blueprint->modelName;
+        $resourceName = "{$modelName}Resource";
+        $resourceDir = GenerationPathResolver::resourceDirectory($resourceName);
+        $resourcePath = GenerationPathResolver::resource($resourceName);
 
         $this->ensureDirectoryExists($resourcePath);
 
@@ -165,11 +308,181 @@ PHP;
             File::makeDirectory("{$resourceDir}/Pages", 0755, true);
         }
 
-        File::put($resourcePath, $this->getContent($blueprint));
+        if (GenerationPathResolver::isFilamentV4()) {
+            if (! File::isDirectory("{$resourceDir}/Schemas")) {
+                File::makeDirectory("{$resourceDir}/Schemas", 0755, true);
+            }
+
+            if (! File::isDirectory("{$resourceDir}/Tables")) {
+                File::makeDirectory("{$resourceDir}/Tables", 0755, true);
+            }
+        }
+
+        if (File::exists($resourcePath) && $blueprint->generationMode->shouldMergeExistingArtifacts()) {
+            $updater = app(FilamentResourceUpdater::class);
+            $updatedContent = GenerationPathResolver::isFilamentV4()
+                ? $updater->mergeThinResource(File::get($resourcePath), $this->getContent($blueprint))
+                : $updater->merge(File::get($resourcePath), $this->getContent($blueprint));
+            $this->writeFormattedFile($resourcePath, $updatedContent);
+        } elseif (! File::exists($resourcePath) || $blueprint->generationMode === GenerationMode::Replace) {
+            $this->writeFormattedFile($resourcePath, $this->getContent($blueprint));
+        }
+
+        if (GenerationPathResolver::isFilamentV4()) {
+            $this->generateSeparateSchemaFiles($blueprint);
+        }
 
         $this->generateResourcePages($blueprint, $resourceDir);
 
         return $resourcePath;
+    }
+
+    /**
+     * Classify existing Filament v3 (flat) artifacts for the given blueprint.
+     *
+     * Each legacy file is compared (normalised whitespace) against the content
+     * Architect would have generated in v3 mode. Files whose content still
+     * matches are safe to auto-delete (`deletable`). Files whose content has
+     * been customised must be reviewed by the developer (`modified`).
+     *
+     * Returns an empty result when not running in v4 mode or when no legacy
+     * files are found.
+     *
+     * @return array{deletable: string[], modified: string[]}
+     */
+    public static function classifyLegacyV3Artifacts(BlueprintData $blueprint): array
+    {
+        $empty = ['deletable' => [], 'modified' => []];
+
+        if (! GenerationPathResolver::isFilamentV4()) {
+            return $empty;
+        }
+
+        $modelName = $blueprint->modelName;
+        $resourceName = "{$modelName}Resource";
+        $legacyFile = GenerationPathResolver::legacyV3Resource($resourceName);
+        $legacyDir = GenerationPathResolver::legacyV3ResourceDirectory($resourceName);
+        $v4ResourceFile = GenerationPathResolver::resource($resourceName);
+
+        if ($legacyFile === $v4ResourceFile) {
+            return $empty;
+        }
+
+        $deletable = [];
+        $modified = [];
+
+        // Temporarily switch to v3 mode so stubs and path logic generate v3 content.
+        $originalVersion = config('architect.filament_version');
+        config()->set('architect.filament_version', 'v3');
+
+        try {
+            $generator = new static;
+            $baseNamespace = (string) config('architect.resources_namespace', 'App\\Filament\\Resources');
+            $modelPlural = Str::plural($modelName);
+
+            // --- Main resource file ---
+            if (File::exists($legacyFile)) {
+                $expectedContent = $generator->getContent($blueprint);
+                $actualContent = File::get($legacyFile);
+
+                // Use structural comparison: skip the generated method bodies (form/table/infolist)
+                // so that a blueprint column change doesn't incorrectly flag the file as modified.
+                if (static::isStructurallyUnmodified($actualContent, $expectedContent)) {
+                    $deletable[] = $legacyFile;
+                } else {
+                    $modified[] = $legacyFile;
+                }
+            }
+
+            // --- Pages directory ---
+            if (File::isDirectory($legacyDir)) {
+                $knownPageFiles = [
+                    "{$legacyDir}/Pages/List{$modelPlural}.php" => 'filament-resource-list',
+                    "{$legacyDir}/Pages/Create{$modelName}.php" => 'filament-resource-create',
+                    "{$legacyDir}/Pages/Edit{$modelName}.php" => 'filament-resource-edit',
+                    "{$legacyDir}/Pages/View{$modelName}.php" => 'filament-resource-view',
+                ];
+
+                $classified = [];
+
+                foreach ($knownPageFiles as $filePath => $stubName) {
+                    if (! File::exists($filePath)) {
+                        continue;
+                    }
+
+                    $stub = $generator->getStub($stubName);
+                    $expectedContent = $generator->replacePlaceholders($stub, [
+                        '{{ namespace }}' => $baseNamespace,
+                        '{{ resource_namespace }}' => $baseNamespace,
+                        '{{ resource_class }}' => $resourceName,
+                        '{{ model_class }}' => $modelName,
+                        '{{ model_plural_class }}' => $modelPlural,
+                    ]);
+
+                    $expected = static::normalizeContent($expectedContent);
+                    $actual = static::normalizeContent(File::get($filePath));
+
+                    if ($expected === $actual) {
+                        $deletable[] = $filePath;
+                    } else {
+                        $modified[] = $filePath;
+                    }
+
+                    $classified[] = $filePath;
+                }
+
+                // Any unexpected files in the legacy directory are treated as modified.
+                foreach (File::allFiles($legacyDir) as $file) {
+                    $pathname = $file->getPathname();
+
+                    if (! in_array($pathname, $classified)) {
+                        $modified[] = $pathname;
+                    }
+                }
+            }
+        } finally {
+            config()->set('architect.filament_version', $originalVersion);
+        }
+
+        return ['deletable' => $deletable, 'modified' => $modified];
+    }
+
+    /**
+     * Write (or merge) the Form, Infolist and Table files for the v4 domain structure.
+     */
+    protected function generateSeparateSchemaFiles(BlueprintData $blueprint): void
+    {
+        $modelName = $blueprint->modelName;
+        $updater = app(FilamentResourceUpdater::class);
+
+        $artifacts = [
+            [
+                'path' => GenerationPathResolver::resourceSchemaFile($modelName, 'Form'),
+                'content' => fn () => $this->getFormContent($blueprint),
+                'merge' => fn (string $existing, string $generated) => $updater->mergeSchemaFile($existing, $generated, 'form'),
+            ],
+            [
+                'path' => GenerationPathResolver::resourceSchemaFile($modelName, 'Infolist'),
+                'content' => fn () => $this->getInfolistContent($blueprint),
+                'merge' => fn (string $existing, string $generated) => $updater->mergeSchemaFile($existing, $generated, 'infolist'),
+            ],
+            [
+                'path' => GenerationPathResolver::resourceTableFile($modelName),
+                'content' => fn () => $this->getTableContent($blueprint),
+                'merge' => fn (string $existing, string $generated) => $updater->mergeTableFile($existing, $generated),
+            ],
+        ];
+
+        foreach ($artifacts as $artifact) {
+            $path = $artifact['path'];
+
+            if (File::exists($path) && $blueprint->generationMode->shouldMergeExistingArtifacts()) {
+                $updatedContent = ($artifact['merge'])(File::get($path), ($artifact['content'])());
+                $this->writeFormattedFile($path, $updatedContent);
+            } elseif (! File::exists($path) || $blueprint->generationMode === GenerationMode::Replace) {
+                $this->writeFormattedFile($path, ($artifact['content'])());
+            }
+        }
     }
 
     protected function generateResourcePages(BlueprintData $blueprint, string $directory): void
@@ -177,7 +490,10 @@ PHP;
         $modelName = $blueprint->modelName;
         $modelPlural = Str::plural($modelName);
         $resourceClass = "{$modelName}Resource";
-        $namespace = config('architect.resources_namespace', 'App\\Filament\\Resources');
+        $baseNamespace = (string) config('architect.resources_namespace', 'App\\Filament\\Resources');
+        $resourceNamespace = GenerationPathResolver::isFilamentV4()
+            ? GenerationPathResolver::resourceNamespace($modelName)
+            : $baseNamespace;
 
         $pages = [
             'List' => [
@@ -202,7 +518,8 @@ PHP;
             $content = $this->getStub($config['stub']);
 
             $content = $this->replacePlaceholders($content, [
-                '{{ namespace }}' => $namespace,
+                '{{ namespace }}' => $baseNamespace,
+                '{{ resource_namespace }}' => $resourceNamespace,
                 '{{ resource_class }}' => $resourceClass,
                 '{{ model_class }}' => $modelName,
                 '{{ model_plural_class }}' => $modelPlural,
@@ -210,7 +527,160 @@ PHP;
 
             $path = "{$directory}/Pages/{$config['fileName']}";
 
-            File::put($path, $content);
+            if (! File::exists($path) || $blueprint->generationMode === GenerationMode::Replace) {
+                $this->writeFormattedFile($path, $content);
+            }
         }
+    }
+
+    private function resolveRelationshipDisplayColumn(ColumnDefinition $column, string $relationshipName): string
+    {
+        if (filled($column->relationshipTitleColumn)) {
+            return (string) $column->relationshipTitleColumn;
+        }
+
+        $tableName = $this->resolveRelationshipTableName($column, $relationshipName);
+        $fallback = $this->resolveRelationshipKeyName($relationshipName);
+
+        if ($tableName === null || ! Schema::hasTable($tableName)) {
+            return $fallback;
+        }
+
+        $columnNames = collect(Schema::getColumns($tableName))
+            ->pluck('name')
+            ->filter(fn ($name) => is_string($name))
+            ->map(fn (string $name) => strtolower($name))
+            ->values()
+            ->all();
+
+        foreach (self::PREFERRED_RELATIONSHIP_TITLE_COLUMNS as $candidate) {
+            if (in_array($candidate, $columnNames, true)) {
+                return $candidate;
+            }
+        }
+
+        return $fallback;
+    }
+
+    private function resolveRelationshipTableName(ColumnDefinition $column, string $relationshipName): ?string
+    {
+        if (filled($column->relationshipTable)) {
+            return (string) $column->relationshipTable;
+        }
+
+        $relatedModel = $this->resolveRelatedModel($relationshipName);
+
+        if ($relatedModel instanceof EloquentModel) {
+            return $relatedModel->getTable();
+        }
+
+        return Str::snake(Str::pluralStudly(Str::studly($relationshipName)));
+    }
+
+    private function resolveRelationshipKeyName(string $relationshipName): string
+    {
+        $relatedModel = $this->resolveRelatedModel($relationshipName);
+
+        return $relatedModel instanceof EloquentModel
+            ? $relatedModel->getKeyName()
+            : 'id';
+    }
+
+    private function resolveRelatedModel(string $relationshipName): ?EloquentModel
+    {
+        $modelClass = trim(GenerationPathResolver::modelsNamespace(), '\\').'\\'.Str::studly($relationshipName);
+
+        if (! class_exists($modelClass)) {
+            return null;
+        }
+
+        $model = app($modelClass);
+
+        return $model instanceof EloquentModel ? $model : null;
+    }
+
+    /**
+     * Compare two v3 resource file contents structurally, ignoring the bodies
+     * of Architect-generated methods (form / table / infolist / getEloquentQuery).
+     *
+     * This allows a blueprint column update (which changes those method bodies)
+     * to still be considered "unmodified" — only user-added or user-changed
+     * methods and properties trigger a `modified` classification.
+     */
+    private static function isStructurallyUnmodified(string $actualContent, string $expectedContent): bool
+    {
+        // Fast path: exact match after whitespace normalisation
+        if (static::normalizeContent($actualContent) === static::normalizeContent($expectedContent)) {
+            return true;
+        }
+
+        /** Methods whose bodies are replaced on every generation and must be ignored during comparison. */
+        $generatedMethods = ['form', 'table', 'infolist', 'getEloquentQuery'];
+
+        $extractSignature = static function (string $content) use ($generatedMethods): string {
+            try {
+                $ast = (new ParserFactory)->createForNewestSupportedVersion()->parse($content);
+
+                if (! $ast) {
+                    return '';
+                }
+
+                $class = (new NodeFinder)->findFirstInstanceOf($ast, Node\Stmt\Class_::class);
+
+                if (! $class) {
+                    return '';
+                }
+
+                $printer = new PrettyPrinter;
+                $parts = [$class->name->toString()];
+
+                foreach ($class->stmts as $stmt) {
+                    if ($stmt instanceof Node\Stmt\ClassMethod) {
+                        if (in_array($stmt->name->toString(), $generatedMethods)) {
+                            // Include only the method signature (without body) so changes
+                            // to parameter types or return types still flag the file.
+                            $bodyless = clone $stmt;
+                            $bodyless->stmts = [];
+                            $parts[] = $printer->prettyPrint([$bodyless]);
+                        } else {
+                            $parts[] = $printer->prettyPrint([$stmt]);
+                        }
+                    } elseif ($stmt instanceof Node\Stmt\Property) {
+                        $parts[] = $printer->prettyPrint([$stmt]);
+                    }
+                }
+
+                // Sort member parts so that method/property ordering differences
+                // between the actual file and the generated stub do not trigger
+                // a false "modified" classification.
+                $className = array_shift($parts);
+                sort($parts);
+
+                return implode('||', array_merge([$className], $parts));
+
+            } catch (\Throwable) {
+                return '';
+            }
+        };
+
+        $actualSignature = $extractSignature($actualContent);
+        $expectedSignature = $extractSignature($expectedContent);
+
+        // Fall back to "modified" if parsing failed on either side
+        if ($actualSignature === '' || $expectedSignature === '') {
+            return false;
+        }
+
+        return static::normalizeContent($actualSignature) === static::normalizeContent($expectedSignature);
+    }
+
+    /**
+     * Normalise PHP source content for comparison by collapsing all whitespace
+     * sequences to a single space. This makes the comparison resilient to
+     * formatting differences (indentation, line endings, Pint style changes).
+     */
+    private static function normalizeContent(string $content): string
+    {
+        return preg_replace('/\s+/', ' ', trim($content)) ?? '';
     }
 }

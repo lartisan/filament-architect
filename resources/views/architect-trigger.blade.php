@@ -14,8 +14,7 @@
             class="w-full justify-start"
             wire:click="openArchitect"
         >
-            {{ __('Architect') }}
+            {{ $this->isProInstalled() ? __('ArchitectPRO') : __('Architect') }}
         </x-filament::button>
     @endif
 </div>
-

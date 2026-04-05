@@ -2,10 +2,21 @@
 
 use Illuminate\Support\Facades\File;
 use Lartisan\Architect\Generators\ModelGenerator;
+use Lartisan\Architect\Support\GenerationPathResolver;
 use Lartisan\Architect\Tests\TestCase;
 use Lartisan\Architect\ValueObjects\BlueprintData;
 
 uses(TestCase::class);
+
+beforeEach(function () {
+    config()->set('architect.models_namespace', modelGeneratorTestModelsNamespace());
+});
+
+afterEach(function () {
+    if (File::isDirectory(modelGeneratorTestModelsRoot())) {
+        File::deleteDirectory(modelGeneratorTestModelsRoot());
+    }
+});
 
 it('generates a model file with correct content', function () {
     $blueprint = BlueprintData::fromArray([
@@ -50,6 +61,26 @@ it('generates a relationship for foreignId column', function () {
     expect($content)
         ->toContain('use Illuminate\Database\Eloquent\Relations\BelongsTo;')
         ->toContain('public function user(): BelongsTo')
+        ->toContain('return $this->belongsTo(User::class);');
+
+    File::delete($path);
+});
+
+it('generates a relationship using the selected related table model when provided', function () {
+    $blueprint = BlueprintData::fromArray([
+        'table_name' => 'posts',
+        'model_name' => 'Post',
+        'columns' => [
+            ['name' => 'author_id', 'type' => 'foreignId', 'relationship_table' => 'users'],
+        ],
+    ]);
+
+    $generator = new ModelGenerator;
+    $path = $generator->generate($blueprint);
+    $content = File::get($path);
+
+    expect($content)
+        ->toContain('public function author(): BelongsTo')
         ->toContain('return $this->belongsTo(User::class);');
 
     File::delete($path);
@@ -136,3 +167,13 @@ it('includes foreign keys in fillable attributes', function () {
 
     File::delete($path);
 });
+
+function modelGeneratorTestModelsNamespace(): string
+{
+    return 'App\\Testing\\ModelGenerator\\Models';
+}
+
+function modelGeneratorTestModelsRoot(): string
+{
+    return dirname(GenerationPathResolver::model('Project'));
+}

@@ -6,12 +6,18 @@ use Illuminate\Support\Facades\Schema;
 use Lartisan\Architect\Generators\FilamentResourceGenerator;
 use Lartisan\Architect\Generators\MigrationGenerator;
 use Lartisan\Architect\Generators\ModelGenerator;
+use Lartisan\Architect\Support\GenerationPathResolver;
 use Lartisan\Architect\Tests\TestCase;
 use Lartisan\Architect\ValueObjects\BlueprintData;
 
 use function Pest\Laravel\assertDatabaseHas;
 
 uses(TestCase::class);
+
+beforeEach(function () {
+    config()->set('architect.models_namespace', resourceFunctionalityModelsNamespace());
+    config()->set('architect.resources_namespace', resourceFunctionalityResourcesNamespace());
+});
 
 afterEach(function () {
     // Cleanup after each test
@@ -34,18 +40,27 @@ function cleanupAllGeneratedFiles(): void
     }
 
     // Clean Post model and resources
-    @unlink(app_path('Models/Post.php'));
-    @unlink(app_path('Models/Article.php'));
+    @unlink(GenerationPathResolver::model('Post'));
+    @unlink(GenerationPathResolver::model('Article'));
+    @unlink(GenerationPathResolver::model('BlogPost'));
 
-    if (File::isDirectory(app_path('Filament/Resources/PostResource'))) {
-        File::deleteDirectory(app_path('Filament/Resources/PostResource'));
+    if (File::isDirectory(GenerationPathResolver::resourceDirectory('PostResource'))) {
+        File::deleteDirectory(GenerationPathResolver::resourceDirectory('PostResource'));
     }
-    @unlink(app_path('Filament/Resources/PostResource.php'));
+    @unlink(GenerationPathResolver::resource('PostResource'));
 
-    if (File::isDirectory(app_path('Filament/Resources/ArticleResource'))) {
-        File::deleteDirectory(app_path('Filament/Resources/ArticleResource'));
+    if (File::isDirectory(GenerationPathResolver::resourceDirectory('ArticleResource'))) {
+        File::deleteDirectory(GenerationPathResolver::resourceDirectory('ArticleResource'));
     }
-    @unlink(app_path('Filament/Resources/ArticleResource.php'));
+    @unlink(GenerationPathResolver::resource('ArticleResource'));
+
+    if (File::isDirectory(resourceFunctionalityModelsRoot())) {
+        File::deleteDirectory(resourceFunctionalityModelsRoot());
+    }
+
+    if (File::isDirectory(resourceFunctionalityResourcesRoot())) {
+        File::deleteDirectory(resourceFunctionalityResourcesRoot());
+    }
 
     // Clean migrations
     $migrationsPath = database_path('migrations');
@@ -102,14 +117,35 @@ it('generates all necessary files for a complete resource', function () {
     expect(File::exists($resourcePath))->toBeTrue();
 
     $resourceContent = File::get($resourcePath);
-    expect($resourceContent)
-        ->toContain('class PostResource extends Resource')
-        ->toContain('Forms\Components\TextInput::make(\'title\')')
-        ->toContain('Forms\Components\Textarea::make(\'content\')')
-        ->toContain('Tables\Columns\TextColumn::make(\'title\')');
+    expect($resourceContent)->toContain('class PostResource extends Resource');
 
-    // Check resource pages
-    $resourceDir = app_path('Filament/Resources/PostResource');
+    // In v4 (domain structure), form/table components are in separate schema files
+    $isV4 = config('architect.filament_version', 'v4') === 'v4';
+
+    if ($isV4) {
+        // v4: check the separate schema/table files
+        $formPath = GenerationPathResolver::resourceSchemaFile('Post', 'Form');
+        $tablePath = GenerationPathResolver::resourceTableFile('Post');
+
+        expect(File::exists($formPath))->toBeTrue()
+            ->and(File::exists($tablePath))->toBeTrue();
+
+        expect(File::get($formPath))
+            ->toContain("Forms\Components\TextInput::make('title')")
+            ->toContain("Forms\Components\Textarea::make('content')");
+
+        expect(File::get($tablePath))
+            ->toContain("Tables\Columns\TextColumn::make('title')");
+    } else {
+        // v3: check the inline content in the resource file
+        expect($resourceContent)
+            ->toContain("Forms\Components\TextInput::make('title')")
+            ->toContain("Forms\Components\Textarea::make('content')")
+            ->toContain("Tables\Columns\TextColumn::make('title')");
+    }
+
+    // Check resource pages (in both v3 and v4)
+    $resourceDir = GenerationPathResolver::resourceDirectory('PostResource');
     expect(File::exists("$resourceDir/Pages/ListPosts.php"))->toBeTrue()
         ->and(File::exists("$resourceDir/Pages/CreatePost.php"))->toBeTrue()
         ->and(File::exists("$resourceDir/Pages/EditPost.php"))->toBeTrue()
@@ -139,7 +175,7 @@ it('can run migrations and create tables with proper schema', function () {
     (new ModelGenerator)->generate($blueprint);
 
     // Run migrations
-    Artisan::call('migrate', ['--path' => 'database/migrations']);
+    migrateResourceFunctionalityTestMigration($migrationPath);
 
     // Verify table exists with correct schema
     expect(Schema::hasTable('posts'))->toBeTrue()
@@ -153,7 +189,7 @@ it('can run migrations and create tables with proper schema', function () {
     Schema::drop('posts');
     DB::table('migrations')->where('migration', 'like', '%_create_posts_table')->delete();
     File::delete($migrationPath);
-    File::delete(app_path('Models/Post.php'));
+    File::delete(GenerationPathResolver::model('Post'));
 });
 
 it('can perform full CRUD operations on generated models', function () {
@@ -171,7 +207,7 @@ it('can perform full CRUD operations on generated models', function () {
     $modelPath = (new ModelGenerator)->generate($blueprint);
 
     // Run migration
-    Artisan::call('migrate', ['--path' => 'database/migrations']);
+    migrateResourceFunctionalityTestMigration($migrationPath);
 
     // Verify table was created
     expect(Schema::hasTable('blog_posts'))->toBeTrue();
@@ -180,7 +216,7 @@ it('can perform full CRUD operations on generated models', function () {
     require_once $modelPath;
 
     // Test model functionality
-    $modelClass = 'App\\Models\\BlogPost';
+    $modelClass = resourceFunctionalityModelsNamespace().'\\BlogPost';
 
     // CREATE
     $model = $modelClass::create([
@@ -215,3 +251,36 @@ it('can perform full CRUD operations on generated models', function () {
     File::delete($migrationPath);
     File::delete($modelPath);
 });
+
+function resourceFunctionalityModelsNamespace(): string
+{
+    return 'App\\Testing\\ResourceFunctionality\\Models';
+}
+
+function resourceFunctionalityResourcesNamespace(): string
+{
+    return 'App\\Testing\\ResourceFunctionality\\Filament\\Resources';
+}
+
+function resourceFunctionalityModelsRoot(): string
+{
+    return dirname(GenerationPathResolver::model('Post'));
+}
+
+function resourceFunctionalityResourcesRoot(): string
+{
+    // In v4, resource is nested one level deeper (Resources/Posts/PostResource.php)
+    // so we go up three levels to reach the Resources/ parent.
+    // In v3, it is Resources/PostResource.php, so two levels.
+    $resourcePath = GenerationPathResolver::resource('PostResource');
+
+    return dirname(dirname(dirname($resourcePath)));
+}
+
+function migrateResourceFunctionalityTestMigration(string $path): void
+{
+    Artisan::call('migrate', [
+        '--path' => $path,
+        '--realpath' => true,
+    ]);
+}

@@ -4,17 +4,34 @@ namespace Lartisan\Architect\Generators;
 
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
+use Lartisan\Architect\Enums\GenerationMode;
+use Lartisan\Architect\Support\GenerationPathResolver;
+use Lartisan\Architect\Support\ModelUpdater;
+use Lartisan\Architect\Support\RelationshipModelResolver;
 use Lartisan\Architect\ValueObjects\BlueprintData;
 
 readonly class ModelGenerator extends AbstractGenerator
 {
     public function generate(BlueprintData $blueprint): string
     {
-        $path = app_path("Models/{$blueprint->modelName}.php");
+        $path = GenerationPathResolver::model($blueprint->modelName);
 
         $this->ensureDirectoryExists($path);
 
-        File::put($path, $this->getContent($blueprint));
+        if (File::exists($path)) {
+            if ($blueprint->generationMode === GenerationMode::Create) {
+                return $path;
+            }
+
+            if ($blueprint->generationMode->shouldMergeExistingArtifacts()) {
+                $updatedContent = app(ModelUpdater::class)->merge(File::get($path), $blueprint);
+                $this->writeFormattedFile($path, $updatedContent);
+
+                return $path;
+            }
+        }
+
+        $this->writeFormattedFile($path, $this->getContent($blueprint));
 
         return $path;
     }
@@ -24,7 +41,7 @@ readonly class ModelGenerator extends AbstractGenerator
         $stub = $this->getStub('model');
 
         return $this->replacePlaceholders($stub, [
-            '{{ namespace }}' => config('architect.namespace', 'App\\Models'),
+            '{{ namespace }}' => GenerationPathResolver::modelsNamespace(),
             '{{ imports }}' => $blueprint->getTraitImports().$this->getRelationshipImports($blueprint),
             '{{ class }}' => $blueprint->modelName,
             '{{ traits }}' => $blueprint->getModelTraits(),
@@ -70,7 +87,7 @@ readonly class ModelGenerator extends AbstractGenerator
             }
 
             if ($relationshipName) {
-                $relatedModelClass = Str::studly($relationshipName);
+                $relatedModelClass = app(RelationshipModelResolver::class)->resolveModelName($column, $relationshipName);
 
                 $relationships[] = <<<PHP
     public function {$relationshipName}(): BelongsTo
