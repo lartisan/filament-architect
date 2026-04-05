@@ -58,7 +58,7 @@ class ArchitectAction extends Action
                     ->actions([
                         Action::make('upgrade')
                             ->label('Upgrade Guide')
-                            ->url('https://github.com/lartisan/filament-architect/releases/tag/1.0.0')
+                            ->url('https://github.com/lartisan/filament-architect/releases/tag/v1.0.0')
                             ->color('gray')
                             ->icon('heroicon-m-arrow-top-right-on-square')
                             ->openUrlInNewTab(),
