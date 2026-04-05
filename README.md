@@ -10,9 +10,13 @@ A powerful [Filament](https://filamentphp.com) plugin that enables rapid scaffol
 [![GitHub Tests](https://img.shields.io/github/actions/workflow/status/lartisan/filament-architect/tests.yml?label=Tests)](https://github.com/lartisan/filament-architect/actions)
 [![Total Downloads](https://img.shields.io/packagist/dt/lartisan/filament-architect.svg)](https://packagist.org/packages/lartisan/filament-architect)
 [![License](https://img.shields.io/packagist/l/lartisan/filament-architect.svg)](https://packagist.org/packages/lartisan/filament-architect)
+[![Live Demo](https://img.shields.io/badge/Live_Demo-architect.filamentcomponents.com-blue)](https://architect.filamentcomponents.com/)
 
 </div>
 </div>
+
+> [!TIP]
+> **Try the live demo** — [architect.filamentcomponents.com](https://architect.filamentcomponents.com/)
 
 > [!IMPORTANT]
 > `v1.0.0` introduces new database migrations for Filament Architect.
