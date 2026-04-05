@@ -4,26 +4,15 @@
 
 `v1.0.0` introduces a new database table and related schema updates required by the blueprint revision workflow.
 
-If you are upgrading from any release prior to `v1.0.0`, you **must** publish the latest package migrations and run your application's migrations before opening Filament Architect.
+If you are upgrading from any release prior to `v1.0.0`, run `architect:upgrade` — it publishes the new migrations, runs them, and backfills revisions for existing blueprints.
 
 ## Required upgrade steps
 
 1. Update the package to `v1.0.0`.
-2. Publish the latest Architect migrations.
-3. Run your application's database migrations.
-4. Backfill revisions for existing blueprints.
+2. Run `architect:upgrade`.
 
 ```bash
-php artisan vendor:publish --tag=architect-migrations
-php artisan migrate
-php artisan architect:upgrade
-```
-
-If you prefer to use the package installer, you may run:
-
-```bash
-php artisan architect:install
-php artisan migrate
+composer require lartisan/filament-architect:^1.0
 php artisan architect:upgrade
 ```
 

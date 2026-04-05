@@ -19,11 +19,11 @@ A powerful [Filament](https://filamentphp.com) plugin that enables rapid scaffol
 > **Try the live demo** — [architect.filamentcomponents.com](https://architect.filamentcomponents.com/)
 
 > [!IMPORTANT]
-> `v1.0.0` introduces new database migrations for Filament Architect.
-> If you are upgrading from `v0.1.5` or earlier, publish the latest package migrations and run:
+> **Upgrading from `v0.2.x` or earlier?** `v1.0.0` introduces new database migrations.
 >
 > ```bash
-> php artisan migrate
+> composer require lartisan/filament-architect:^1.0
+> php artisan architect:upgrade
 > ```
 >
 > See [`UPGRADE.md`](UPGRADE.md) for the full upgrade steps.
@@ -42,18 +42,16 @@ The current implementation is built for iterative work, not just first-time scaf
 
 > Prerequisite: you already have a Laravel app with a Filament panel set up.
 
-> Upgrading an existing install? Review [`UPGRADE.md`](UPGRADE.md) before opening Architect in your panel.
+> Upgrading from a pre-1.0.0 release? Skip to the [Upgrade](#upgrading-from-pre-100) section, or review [`UPGRADE.md`](UPGRADE.md).
 
 1. Install the package.
 2. Run the Architect installer.
 3. Register the plugin in your Filament panel.
-4. Run migrations.
-5. Open the **Architect** action in your panel and generate your first resource stack.
+4. Open the **Architect** action in your panel and generate your first resource stack.
 
 ```bash
 composer require lartisan/filament-architect
 php artisan architect:install
-php artisan migrate
 ```
 
 ```php
@@ -271,12 +269,11 @@ Until pricing and packaging are finalized, it is safest to describe this as:
 
 ## Installation
 
-For a new installation:
+### Fresh install
 
 ```bash
 composer require lartisan/filament-architect
 php artisan architect:install
-php artisan migrate
 ```
 
 Then register the plugin in your Filament panel provider:
@@ -302,24 +299,22 @@ class AdminPanelProvider extends PanelProvider
 }
 ```
 
-If you are upgrading from `v0.1.5` or an earlier release, publish the latest package migrations before running `php artisan migrate`:
+`architect:install` publishes assets and migrations, runs `php artisan migrate`, and registers a Composer hook for `filament:assets`.
+
+### Upgrading from pre-1.0.0
+
+If you are upgrading from any pre-1.0.0 release (`v0.2.x`, `v0.1.x`, etc.):
 
 ```bash
-php artisan vendor:publish --tag=architect-migrations
-php artisan migrate
+composer require lartisan/filament-architect:^1.0
+php artisan architect:upgrade
 ```
 
-The `architect:install` command currently:
-- runs `filament:assets`
-- publishes the package migrations
-- adds `@php artisan filament:assets` to `composer.json` `post-autoload-dump` if needed
-- displays an explicit reminder that `v1.0.0` requires `php artisan migrate`
+`architect:upgrade` publishes the new migrations, runs `php artisan migrate`, and backfills initial revisions for existing blueprints.
 
-This creates the Architect tables used for:
-- saved blueprints
-- blueprint revision history
+> **Tip:** Run `php artisan architect:upgrade --dry-run` first to preview which blueprints will be backfilled without writing any changes.
 
-For an upgrade-specific walkthrough, see [`UPGRADE.md`](UPGRADE.md).
+For a detailed walkthrough, see [`UPGRADE.md`](UPGRADE.md).
 
 ---
 
