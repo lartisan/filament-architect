@@ -11,6 +11,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
+use Filament\Schemas\Components\Callout;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Livewire;
 use Filament\Schemas\Components\Tabs;
@@ -49,6 +50,20 @@ class ArchitectAction extends Action
             ->modalWidth(Width::FiveExtraLarge)
             ->slideOver()
             ->schema([
+                Callout::make()
+                    ->icon(Heroicon::LightBulb)
+                    ->color('warning')
+                    ->heading('Big News! New Major Version Available: 1.0.0')
+                    ->description('Filament Architect has reached a stable milestone. Version 1.0.0 introduces significant performance improvements and is fully optimized for the TALL stack (Livewire v4 & Filament v5). We recommend upgrading to ensure continued support and access to new features.')
+                    ->actions([
+                        Action::make('upgrade')
+                            ->label('Upgrade Guide')
+                            ->url('https://github.com/lartisan/filament-architect/releases/tag/1.0.0')
+                            ->color('gray')
+                            ->icon('heroicon-m-arrow-top-right-on-square')
+                            ->openUrlInNewTab(),
+                    ]),
+
                 Tabs::make('Tabs')
                     ->tabs([
                         Tabs\Tab::make(__('Create')) // 'Create / Edit'
