@@ -3,6 +3,7 @@
 namespace Lartisan\Architect\Livewire;
 
 use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Actions\Concerns\InteractsWithActions;
 use Filament\Actions\Contracts\HasActions;
 use Filament\Actions\DeleteAction;
@@ -36,31 +37,33 @@ class BlueprintsTable extends Component implements HasActions, HasForms, HasTabl
             ->query(Blueprint::query()->latest())
             ->columns($this->getTableColumns())
             ->recordActions([
-                ...$extensionRecordActions,
+                ActionGroup::make([
+                    Action::make('load')
+                        ->label(__('Load'))
+                        ->icon('heroicon-m-arrow-path')
+                        ->color('success')
+                        ->action(function ($record) {
+                            $this->dispatch('load-blueprint', id: $record->id)
+                                ->to(ArchitectWizard::class);
 
-                Action::make('load')
-                    ->label(__('Load'))
-                    ->icon('heroicon-m-arrow-path')
-                    ->color('success')
-                    ->action(function ($record) {
-                        $this->dispatch('load-blueprint', id: $record->id)
-                            ->to(ArchitectWizard::class);
+                            $this->activateFirstTab();
 
-                        $this->activateFirstTab();
+                            Notification::make()
+                                ->title(__('Blueprint loaded: :table', ['table' => $record->table_name]))
+                                ->success()
+                                ->send();
+                        }),
 
-                        Notification::make()
-                            ->title(__('Blueprint loaded: :table', ['table' => $record->table_name]))
-                            ->success()
-                            ->send();
-                    }),
+                    ...$extensionRecordActions,
 
-                DeleteAction::make()
-                    ->requiresConfirmation()
-                    ->modalIcon(Heroicon::ShieldExclamation)
-                    ->modalDescription('Are you sure you want to delete this blueprint?')
-                    ->modalContent(view('architect::blueprint-delete'))
-                    ->action(fn (Blueprint $record) => $this->deleteBlueprint($record))
-                    ->successNotificationTitle(__('Resource and associated files deleted successfully')),
+                    DeleteAction::make()
+                        ->requiresConfirmation()
+                        ->modalIcon(Heroicon::ShieldExclamation)
+                        ->modalDescription('Are you sure you want to delete this blueprint?')
+                        ->modalContent(view('architect::blueprint-delete'))
+                        ->action(fn (Blueprint $record) => $this->deleteBlueprint($record))
+                        ->successNotificationTitle(__('Resource and associated files deleted successfully')),
+                ]),
             ])
             ->emptyStateHeading(__('No blueprints yet, create one!'))
             ->emptyStateActions([
