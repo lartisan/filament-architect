@@ -215,16 +215,33 @@ ArchitectPlugin::generationHooks()->afterGenerate(
 
 Architect today is focused on strong open-source CRUD scaffolding and safe regeneration loops.
 
-A future premium edition is planned to build on that foundation with workflows that are especially useful for larger teams, legacy projects, and more complex data models.
+A premium edition — **Architect PRO** — builds on that foundation with workflows especially useful for larger teams, legacy projects, and more complex data models.
 
-Planned premium areas currently include:
+### Available in Architect PRO
+
+These features are already shipped in the premium package:
 
 - **Visual revision history**
   - browse stored blueprint revisions
-  - inspect snapshot diffs and generated changes visually
+  - GitHub-style diff view of changes between snapshots
+
+- **Blueprint comments / notes**
+  - annotate blueprints with inline notes
+  - basic team communication around blueprint changes
+
+- **Blueprint approval workflows**
+  - request and track approval for blueprint changes
+  - basic review flow (full team mode in development)
+
+- **Audit log browser**
+  - inspect a searchable log of blueprint-related activity
+
+### Coming soon
+
+These features are planned for future PRO releases:
 
 - **Rollback / restore workflows**
-  - restore a previous blueprint revision
+  - one-click restore of a previous blueprint revision
   - streamline reverting generated files and related schema changes
 
 - **Legacy adoption / reverse engineering**
@@ -236,14 +253,14 @@ Planned premium areas currently include:
   - polymorphic relationship support
   - richer Filament relationship generation flows
 
-- **Team-oriented workflows**
-  - approvals and change review flows
-  - blueprint locks, audit trails, and collaboration-oriented tooling
+- **Full team collaboration**
+  - blueprint locks and ownership
+  - broader audit trails and collaboration tooling (approvals and comments are available now)
 
 - **Priority support**
   - commercial support for teams that want faster feedback and help
 
-> These features are planned / proposed, not shipped yet. The open-source package described in this README is the currently available product.
+> Some PRO features are already available; others are still in development. The open-source package described in this README is the free, currently available product.
 
 ### Waiting list / early-bird pricing
 
