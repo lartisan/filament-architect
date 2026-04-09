@@ -32,6 +32,8 @@ class ArchitectPlugin implements Plugin
 
     protected string|array|null $actionColor = null;
 
+    protected bool $showProBanner = false;
+
     public function getId(): string
     {
         return 'architect';
@@ -64,6 +66,18 @@ class ArchitectPlugin implements Plugin
         $this->actionColor = $color;
 
         return $this;
+    }
+
+    public function showProBanner(bool $condition = true): static
+    {
+        $this->showProBanner = $condition;
+
+        return $this;
+    }
+
+    public function shouldShowProBanner(): bool
+    {
+        return $this->showProBanner;
     }
 
     public function getActionColor(): string|array|null

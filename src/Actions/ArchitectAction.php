@@ -61,6 +61,9 @@ class ArchitectAction extends Action
 
         $isProInstalled = class_exists(ArchitectProServiceProvider::class);
 
+        $plugin = Filament::getCurrentPanel()?->getPlugin('architect');
+        $forceShowProBanner = $plugin?->shouldShowProBanner() ?? false;
+
         $this->label($isProInstalled ? 'ArchitectPRO' : 'Architect')
             ->modalHeading($isProInstalled ? 'ArchitectPRO' : 'Architect')
             ->modalDescription(__('Generate Eloquent model, migration, factory and seeder along with the associated Filament resource.'))
@@ -71,7 +74,7 @@ class ArchitectAction extends Action
             ->schema([
                 Callout::make()
                     ->view('architect::components.pro-cta')
-                    ->hidden($isProInstalled),
+                    ->hidden($isProInstalled && ! $forceShowProBanner),
 
                 Tabs::make('Tabs')
                     ->tabs(self::tabs())
