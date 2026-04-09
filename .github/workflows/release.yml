@@ -1,0 +1,48 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  tests:
+    name: Run tests before release
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        php: [ 8.3, 8.4 ]
+        laravel: [ 12, 13 ]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite, bcmath, soap, intl, gd, exif, iconv
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: |
+          composer require --dev "laravel/framework:^${{ matrix.laravel }}" --no-interaction --no-update
+          composer update --prefer-dist --no-interaction --no-progress
+
+      - name: Execute tests
+        run: composer test
+
+  notify-packagist:
+    name: Trigger Packagist update
+    runs-on: ubuntu-latest
+    needs: tests
+
+    steps:
+      - name: Dispatch update to Packagist
+        run: |
+          curl -XPOST -H 'content-type:application/json' \
+            "https://packagist.org/api/update-package?username=lartisan&apiToken=${{ secrets.PACKAGIST_TOKEN }}" \
+            -d '{"repository":{"url":"https://github.com/lartisan/filament-architect"}}'
