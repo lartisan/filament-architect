@@ -1,0 +1,7 @@
+/* Make the footer actions bar span full-width inside the Architect modal so
+   that ms-auto on the version badge pushes it to the far right.
+   align-items: center ensures buttons stay vertically centered in the row. */
+.architect-modal .fi-modal-footer-actions {
+    width: 100%;
+    align-items: center;
+}

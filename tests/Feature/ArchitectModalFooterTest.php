@@ -23,3 +23,12 @@ it('places the version badge in the modal footer actions', function () {
         ->toContain('Plugin version')
         ->toContain(ArchitectPlugin::version());
 });
+
+it('applies the architect-modal class to the modal window for footer alignment CSS', function () {
+    $livewire = app(ArchitectWizard::class);
+    $action = ArchitectAction::make()->livewire($livewire);
+
+    $windowAttributes = $action->getExtraModalWindowAttributes();
+
+    expect($windowAttributes['class'])->toContain('architect-modal');
+});

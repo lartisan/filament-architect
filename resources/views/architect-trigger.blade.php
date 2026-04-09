@@ -11,6 +11,8 @@
         <x-filament::button
             :color="$this->getTriggerColor()"
             :icon="$this->getTriggerIcon()"
+            :badge="$this->isProInstalled() ? 'BETA' : null"
+            :badge-color="'danger'"
             class="w-full justify-start"
             wire:click="openArchitect"
         >

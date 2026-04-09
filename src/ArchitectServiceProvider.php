@@ -75,6 +75,7 @@ class ArchitectServiceProvider extends PackageServiceProvider
     protected function getAssets(): array
     {
         return [
+            Css::make('architect', __DIR__.'/../resources/dist/architect.css'),
             Css::make('prism-tomorrow', __DIR__.'/../resources/dist/prism-tomorrow.min.css'),
             Js::make('prism-core', __DIR__.'/../resources/dist/prism.min.js'),
             Js::make('prism-markup-templating', __DIR__.'/../resources/dist/prism-markup-templating.min.js'),
