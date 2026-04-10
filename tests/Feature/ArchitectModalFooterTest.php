@@ -20,7 +20,7 @@ it('places the version badge in the modal footer actions', function () {
         ->toHaveKey('architect_version_badge');
 
     expect($footerActions->get('architect_version_badge')->getLabel())
-        ->toContain('Plugin version')
+        ->toContain('Architect version')
         ->toContain(ArchitectPlugin::version());
 });
 

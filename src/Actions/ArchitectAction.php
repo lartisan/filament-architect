@@ -42,7 +42,8 @@ use Lartisan\Architect\Support\RegenerationPlanner;
 use Lartisan\Architect\ValueObjects\BlueprintData;
 use Lartisan\Architect\ValueObjects\PlannedSchemaOperation;
 use Lartisan\Architect\ValueObjects\RegenerationPlan;
-use Lartisan\FilamentArchitectPro\ArchitectProServiceProvider;
+use Lartisan\ArchitectPro\ArchitectProPlugin;
+use Lartisan\ArchitectPro\ArchitectProServiceProvider;
 
 class ArchitectAction extends Action
 {
@@ -153,12 +154,21 @@ class ArchitectAction extends Action
             ->modalSubmitAction(false)
             ->extraModalWindowAttributes(['class' => 'architect-modal'])
             ->modalFooterActionsAlignment(Alignment::Start)
-            ->modalFooterActions(function (): array {
+            ->modalFooterActions(function () use ($isProInstalled): array {
                 return [
                     $this->getModalCancelAction(),
+
                     Action::make('architect_version_badge')
                         ->badge()
-                        ->label(__('Plugin version').' '.ArchitectPlugin::version())
+                        ->label(__('Architect version').' '.ArchitectPlugin::version())
+                        ->color('gray')
+                        ->disabled()
+                        ->extraAttributes(['class' => 'ms-auto']),
+
+                    Action::make('architect_pro_version_badge')
+                        ->badge()
+                        ->label($isProInstalled ? __('ArchitectPRO version').' '.ArchitectProPlugin::version() : null)
+                        ->visible($isProInstalled)
                         ->color('gray')
                         ->disabled()
                         ->extraAttributes(['class' => 'ms-auto']),

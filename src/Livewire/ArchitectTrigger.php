@@ -3,7 +3,7 @@
 namespace Lartisan\Architect\Livewire;
 
 use Filament\Support\Icons\Heroicon;
-use Lartisan\FilamentArchitectPro\ArchitectProServiceProvider;
+use Lartisan\ArchitectPro\ArchitectProServiceProvider;
 use Livewire\Component;
 
 class ArchitectTrigger extends Component
