@@ -50,6 +50,8 @@ class BlueprintDeletionService
             }
         }
 
+        app(BlueprintGenerationHookRegistry::class)->runAfterDelete($blueprint);
+
         $blueprint->delete();
     }
 }

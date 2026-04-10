@@ -138,7 +138,7 @@ class ArchitectAction extends Action
                     }
 
                     if ($blueprintData->generateResource) {
-                        return redirect()->to('/'.Filament::getCurrentPanel()->getId().'/'.Str::kebab(Str::plural($blueprintData->modelName)));
+                        return redirect()->to('/'.(Filament::getCurrentPanel() ?? Filament::getDefaultPanel())->getId().'/'.Str::kebab(Str::plural($blueprintData->modelName)));
                     }
 
                     return null;
