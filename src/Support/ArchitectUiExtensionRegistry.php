@@ -19,6 +19,11 @@ class ArchitectUiExtensionRegistry
     /**
      * @var array<int, Closure(): mixed>
      */
+    protected array $databaseStepExtensions = [];
+
+    /**
+     * @var array<int, Closure(): mixed>
+     */
     protected array $existingResourcesExtensions = [];
 
     /**
@@ -36,6 +41,13 @@ class ArchitectUiExtensionRegistry
     public function registerCreateEditExtension(Closure $factory): static
     {
         $this->createEditExtensions[] = $factory;
+
+        return $this;
+    }
+
+    public function registerDatabaseStepExtension(Closure $factory): static
+    {
+        $this->databaseStepExtensions[] = $factory;
 
         return $this;
     }
@@ -68,6 +80,14 @@ class ArchitectUiExtensionRegistry
     public function createEditExtensions(): array
     {
         return $this->resolveFactories($this->createEditExtensions);
+    }
+
+    /**
+     * @return array<int, mixed>
+     */
+    public function databaseStepExtensions(): array
+    {
+        return $this->resolveFactories($this->databaseStepExtensions);
     }
 
     /**
@@ -110,6 +130,7 @@ class ArchitectUiExtensionRegistry
     {
         $this->tabs = [];
         $this->createEditExtensions = [];
+        $this->databaseStepExtensions = [];
         $this->existingResourcesExtensions = [];
         $this->blueprintsTableRecordActions = [];
 

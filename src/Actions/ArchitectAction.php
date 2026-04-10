@@ -356,6 +356,8 @@ class ArchitectAction extends Action
                         ], merge: true))
                         ->defaultItems(1)
                         ->reorderable(),
+
+                    ...app(ArchitectUiExtensionRegistry::class)->databaseStepExtensions(),
                 ]),
         ];
     }
