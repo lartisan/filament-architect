@@ -21,9 +21,7 @@ class BlueprintDeletionService
 
         Schema::dropIfExists($tableName);
 
-        DB::table('migrations')
-            ->where('migration', 'like', "%_{$tableName}_table")
-            ->delete();
+        $this->purgeMigrationRecords($tableName);
 
         $filesToDelete = [
             GenerationPathResolver::model($modelName),
@@ -44,14 +42,45 @@ class BlueprintDeletionService
             File::deleteDirectory($resourceDirectory);
         }
 
-        foreach (File::glob(database_path("migrations/*_{$tableName}_table.php")) as $migrationFile) {
-            if (File::exists($migrationFile)) {
-                File::delete($migrationFile);
-            }
+        foreach ($this->findAllMigrationFiles($tableName) as $migrationFile) {
+            File::delete($migrationFile);
         }
 
         app(BlueprintGenerationHookRegistry::class)->runAfterDelete($blueprint);
 
         $blueprint->delete();
+    }
+
+    /**
+     * Returns all migration file paths related to the given table, covering:
+     * - create_{table}_table and update_{table}_table
+     * - add_column(s)_*_to_{table}
+     * - update_column(s)_*_on_{table}
+     *
+     * @return array<int, string>
+     */
+    private function findAllMigrationFiles(string $tableName): array
+    {
+        $globs = [
+            database_path("migrations/*_{$tableName}_table.php"),
+            database_path("migrations/*_to_{$tableName}.php"),
+            database_path("migrations/*_on_{$tableName}.php"),
+        ];
+
+        return array_values(array_merge(...array_map(
+            fn (string $pattern) => File::glob($pattern),
+            $globs,
+        )));
+    }
+
+    private function purgeMigrationRecords(string $tableName): void
+    {
+        DB::table('migrations')
+            ->where(function ($query) use ($tableName): void {
+                $query->where('migration', 'like', "%_{$tableName}_table")
+                    ->orWhere('migration', 'like', "%_to_{$tableName}")
+                    ->orWhere('migration', 'like', "%_on_{$tableName}");
+            })
+            ->delete();
     }
 }
