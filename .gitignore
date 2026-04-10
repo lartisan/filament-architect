@@ -3,6 +3,7 @@
 /docs
 /.phpunit.cache/
 /vendor/
+/composer.lock
 .phpunit.result.cache
 ROADMAP.md
 OSS_PREMIUM_FOUNDATION_PLAN.md
