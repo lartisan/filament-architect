@@ -15,6 +15,9 @@ A powerful [Filament](https://filamentphp.com) plugin that enables rapid scaffol
 </div>
 </div>
 
+![Architect](https://github.com/user-attachments/assets/a49a605b-0d33-4321-aa92-114e8b96f9d5)
+
+
 > [!TIP]
 > **Try the live demo** — [architect.filamentcomponents.com](https://architect.filamentcomponents.com/)
 
