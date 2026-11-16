@@ -277,7 +277,7 @@ Until pricing and packaging are finalized, it is safest to describe this as:
 - likely early-bird pricing for pre-launch signups
 - final details to be confirmed at launch
 
-[Join the waiting list](https://filamentcomponents.com/wailtlist/architect?source=github)
+[Join the waiting list](https://filamentcomponents.com/components/waitlist/architect-pro?utm_source=github)
 ---
 
 ## Requirements
